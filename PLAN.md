@@ -1,276 +1,123 @@
-# Debet & Kredit — Komplett funktionsplan
+# Plan — Debet & Kredit för ägarens aktiebolag
 
-> Enskild firma, en användare, kalenderår, Sverige. Byggs med Next.js + Supabase.
-> Referenser analyserade: Fortnox och Visma eEkonomi (Spiris). Regelverk verifierat för inkomstår 2026.
-> Ingen bankkoppling i v1 (förberedd i datamodellen).
+Uppdaterad 2026-09-04. Instruktioner för agenter finns i `AGENTS.md`,
+regelregistret i `docs/REGELVERK.md`.
 
----
+## Läge
 
-## 1. Grundbeslut (fastställda)
+Uppströms (fryst 2026-09-01) ger ett komplett system för enskild firma och ett
+delvis stöd för aktiebolag. Det som fungerar oavsett bolagsform: löpande
+bokföring med oföränderliga verifikat, moms med eSKD-fil, fakturering,
+leverantörsreskontra, bank (Enable Banking och CSV), rapporter, SIE 4,
+anläggningsregister, underlagsinkorg och arkivexport. För aktiebolag finns
+dessutom ett K2-dokument (`src/lib/k2/`) och SRU-export för INK2
+(`src/lib/sru/`).
 
-| Beslut | Val |
-|---|---|
-| Företagsform | Enskild firma → **eget uttag, aldrig lön**. Ingen AGI, inga arbetsgivaravgifter. |
-| Bokföringsmetod | **Både faktureringsmetoden och kontantmetoden (bokslutsmetoden)** — inställning per räkenskapsår |
-| Momsperiod | **Inställbar**: månad / kvartal / helår (styr momsrapport + deadlines) |
-| Räkenskapsår | Kalenderår (lagkrav för EF) |
-| Bokslut | Förenklat årsbokslut (K1, BFNAR 2006:1) — tillåtet ≤ 3 mkr omsättning |
-| Stack | Next.js (App Router) + Supabase (Postgres, Auth, Storage) |
-| Användare | 1 st (single-tenant). Ingen RBAC, inget attestflöde. |
+Det som är byggt för enskild firma och blir fel eller saknas för aktiebolag:
 
----
-
-## 2. Regelverk som styr designen (2026)
-
-### Bokföringslagen & god sed (hårda systemkrav)
-- **Verifikat är oföränderliga.** Rättelse sker ALDRIG genom radering/ändring — endast via **ändringsverifikat** som refererar originalet (och originalet refererar tillbaka). Enda tillåtna radering: senaste verifikatet i sin serie (Fortnox-modellen).
-- **Obrutna verifikationsnummerserier** per serie och räkenskapsår. Nummer sätts vid bokföring, aldrig återanvänds.
-- Verifikatets innehållskrav (BFL 5:7): registreringsdatum, affärshändelsens datum, beskrivning (art + mängd), belopp, motpart, hänvisning till underlag, verifikationsnummer.
-- **Periodlåsning**: låst period tillåter inga nya/ändrade verifikat. Godkänd momsrapport låser momsperioden automatiskt.
-- **Arkivering 7 år** — digitalt räcker (originalkrav slopat juli 2024). Bilagor lagras i Supabase Storage, får aldrig raderas medan verifikatet finns.
-- Dubbel bokföring: varje verifikat måste balansera (Σ debet = Σ kredit) — DB-constraint, inte bara UI-validering.
-
-### Moms 2026
-- Satser: **25 / 12 / 6 / 0 %**. **Datumstyrda satser i systemet** (tabell, inte hårdkodat): livsmedel 12 % → 6 % fr.o.m. 2026-04-01 (t.o.m. 2027-12-31). Satsen bestäms av leverans-/affärshändelsedatum.
-- Momsdeklarationens rutor 05–62 mappas från konton via **momskod per konto** (se §5).
-- Deklarationsdatum: 12:e i andra månaden efter periodens slut (17 jan / 17 aug). Helårsmoms utan EU-handel: 12 maj året efter; med EU-handel: 26 feb.
-- Momsbefrielsegräns 120 000 kr (gäller ej momsregistrerade företag, men bra att känna till).
-- Kontantmetoden: moms redovisas vid betalning; vid årsskiftet ska dock obetalda fordringar/skulder bokföras.
-- EU-försäljning av tjänster (ruta 39) kräver **periodisk sammanställning** — flaggas i skattekalendern.
-
-### Enskild firma-specifikt 2026
-| Post | Värde |
-|---|---|
-| Egenavgifter, full sats | **28,97 %** (generell nedsättning 7,5 %, max 15 000 kr/år vid överskott > 40 000 kr) |
-| Schablonavdrag egenavgifter (NE R43) | **25 %** |
-| Debiterad preliminärskatt (F-skatt) | 12:e varje månad (17 jan/aug). Bokförs **debet 2012 / kredit 1930** = eget uttag, ALDRIG kostnad |
-| Periodiseringsfond | **30 %** av justerat resultat, återförs senast år 6. Ren deklarationspost — bokförs INTE vid K1. Ingen schablonintäkt för EF |
-| Räntefördelning 2026 | Positiv **8,55 %** (frivillig, kapitalunderlag > 50 000 kr), negativ **3,55 %** (obligatorisk < −50 000 kr) |
-| Expansionsfond | Skatt 20,6 %, tak 125,94 % av kapitalunderlaget |
-| Prisbasbelopp | **59 200 kr** → direktavdrag inventarier < **29 600 kr** exkl. moms |
-| Milersättning egen bil | **25 kr/mil** skattefritt |
-| Traktamente inrikes | 300 kr helt / 150 kr halvt |
-| Representation måltid | 0 kr avdragsgillt; moms lyfts på underlag ≤ 300 kr/person. Enklare förtäring ≤ 60 kr/person avdragsgill |
-| Statlig skatt, skiktgräns | 660 400 kr |
-
-### Fakturakrav (momslagen 17 kap.)
-Fullständig faktura: utfärdandedatum, **löpnummer** (obruten serie), säljarens VAT-nr (SE + personnr + 01), köparens VAT-nr vid EU/omvänd, namn+adress båda parter, art & mängd, leveransdatum, underlag per momssats, à-pris exkl. moms, rabatt, momssats, momsbelopp i SEK, samt lagtext-hänvisning vid omvänd skattskyldighet/EU-försäljning. Förenklad faktura tillåten ≤ 4 000 kr ink. moms (ej vid EU-handel). Kreditnota kräver otvetydig hänvisning till ursprungsfakturan.
-
----
-
-## 3. Arkitektur
-
-```
-Next.js (App Router, TypeScript, Tailwind + shadcn/ui)
-├── Server Actions / Route Handlers → all bokföringslogik körs server-side
-├── PDF-generering: @react-pdf/renderer (fakturor, rapporter)
-├── E-post: Resend (fakturautskick med PDF-bilaga)
-└── Supabase
-    ├── Postgres — all data, constraints för balans/serier/låsning
-    ├── Auth — en användare (e-post + lösenord/magic link)
-    └── Storage — bucket "underlag" (kvitton, fakturabilagor, PDF-arkiv)
-```
-
-**Principer:**
-- All kontering genereras av en central `posting engine` (ren funktion: händelse in → verifikatrader ut) så att faktura-, moms- och bokslutsmoduler delar samma logik och blir testbar.
-- Verifikat skrivs i en Postgres-transaktion med balans-check och serienummer via `SELECT ... FOR UPDATE` (inga hål i serien).
-- Immutability enforce:as med triggers: UPDATE/DELETE på bokfört verifikat blockeras (utom "senaste i serien"-radering).
-- Belopp lagras som `numeric(12,2)`, aldrig float. Moms beräknas per rad, öresavrundning på totalen mot konto 3740.
-- Alla regelvärden (momssatser, basbelopp, egenavgiftssats, räntefördelningsräntor, milersättning) ligger i en `regelvärden`-tabell med giltighetsdatum — nya år = nya rader, ingen kodändring.
-
----
-
-## 4. Datamodell (Supabase-tabeller)
-
-**Grunddata**
-- `settings` — företagsuppgifter (namn, orgnr/personnr, adress, VAT-nr SE...01, bankgiro/IBAN, logotyp), momsmetod, momsperiod, fakturainställningar (betalningsvillkor default, påminnelseavgift, dröjsmålsränta)
-- `fiscal_years` — räkenskapsår, status (öppet/avslutat), IB förda ja/nej
-- `accounts` — kontoplan (nr, namn, klass, momskod, SRU-kod, NE-ruta, aktiv, spärrmarkering)
-- `vat_rates` — momssatser med giltighetsintervall (datumstyrt)
-- `rule_values` — basbelopp, egenavgifter, räntor m.m. per år
-- `verification_series` — serier (A–…) med beskrivning och nästa nummer per räkenskapsår
-
-**Bokföring**
-- `verifications` — id, serie, nummer, verifikationsdatum, registreringsdatum, beskrivning, motpart, status, `corrects_verification_id` / `corrected_by_verification_id` (rättelsekedja), källa (manuell/faktura/moms/bokslut)
-- `verification_rows` — konto, debet, kredit, transaktionstext
-- `attachments` — koppling verifikat ↔ fil i Storage (typ, filnamn, uppladdningsdatum)
-- `period_locks` — låsta perioder (år+månad, låst av momsrapport eller manuellt)
-
-**Fakturering**
-- `customers` — kundnr (auto), namn, orgnr, adress, leveransadress, e-post, betalningsvillkor, momstyp (SE / EU omvänd / export), språk, valuta, VAT-nr
-- `articles` — artikelnr, benämning, enhet, à-pris, momssats, typ (vara/tjänst), försäljningskonto
-- `invoices` — fakturanr (obruten serie), OCR (Luhn + längdsiffra), typ (debet/kredit), datum, förfallodatum, kund-snapshot (namn/adress fryses vid bokföring), status (utkast/bokförd/skickad/delbetald/betald/förfallen/krediterad/makulerad), `credits_invoice_id`, husarbete-fält (v2), verifikat-id
-- `invoice_rows` — artikel, text, antal, à-pris, rabatt, momssats, konto
-- `invoice_payments` — datum, belopp, verifikat-id (delbetalningar = flera rader)
-- `invoice_reminders` — påminnelse nr, datum, avgift
-- `recurring_invoices` — mall + intervall + nästa datum (v1.5)
-
-**Leverantörer**
-- `suppliers` — namn, orgnr, bankgiro/plusgiro, betalningsvillkor
-- `supplier_invoices` — fakturanr, OCR, datum, förfallodatum, belopp, moms, status, verifikat-id, bilaga
-- `supplier_payments` — datum, belopp, verifikat-id
-
-**Moms & deklaration**
-- `vat_reports` — period, status (utkast/godkänd), belopp per ruta (05–62), omföringsverifikat-id, eSKD-fil
-- `tax_deadlines` — genererad skattekalender (typ, datum, status klar/kvar)
-
-**Bokslut & tillgångar**
-- `assets` — anläggningsregister: benämning, anskaffningsdatum/-värde, konto, avskrivningsmetod (30/20-regeln), ack. avskrivning, såld/utrangerad
-- `year_end_closings` — per år: checklista-status, avskrivningsverifikat, K1-blankettdata, NE-data, periodiseringsfonder (avsättningar/återföringar per år), räntefördelning (sparat utrymme), resultat
-
----
-
-## 5. Kontoplan — BAS 2026 anpassad för småföretag (tjänsteföretag)
-
-Kontoregistret seedas från **BAS 2026** (bas.se — 272 ändringar mot 2025, främst klass 4; hämta officiella Excel-filen vid implementation). Varje konto får: momskod, SRU-kod (för SIE/deklaration) och NE-ruta. Användaren kan aktivera fler BAS-konton vid behov — nedan är de ~95 som aktiveras från start:
-
-### Tillgångar (klass 1)
-`1220` Inventarier · `1229` Ack avskr inventarier · `1250` Datorer · `1259` Ack avskr datorer · `1510` Kundfordringar · `1630` Skattekonto (används normalt ej i EF) · `1650` Momsfordran · `1680` Övriga kortfristiga fordringar · `1710` Förutbet hyra · `1730` Förutbet försäkring · `1790` Övr förutbet kostnader · `1910` Kassa · `1930` Företagskonto · `1940` Övriga bankkonton
-
-### Eget kapital & skulder (klass 2) — EF-hjärtat
-`2010` Eget kapital · `2011` Egna varuuttag · `2012` Avräkning skatter/avgifter (**F-skatt = eget uttag**) · `2013` Övriga egna uttag · `2018` Övriga egna insättningar · `2019` Årets resultat · `2440` Leverantörsskulder · `2611` Utg moms 25 % · `2621` Utg moms 12 % · `2631` Utg moms 6 % · `2614` Utg moms omvänd 25 % (EU-inköp) · `2640` Ing moms · `2645` Beräknad ing moms utland · `2650` Momsredovisningskonto · `2890` Övr kortfristiga skulder · `2990` Upplupna kostnader
-
-### Intäkter (klass 3)
-`3001` Försäljning 25 % (ruta 05) · `3011/3041` Tjänster 25 % · `3105` Export varor (ruta 36) · `3106` EU-försäljning varor (ruta 35) · `3305` Tjänster utanför EU (ruta 40) · `3308` Tjänster EU omvänd (ruta 39) · `3540` Faktureringsavgifter · `3590` Övr fakturerade kostnader · `3740` Öresutjämning · `3990` Övriga intäkter
-
-### Inköp (klass 4 — ⚠ omgjord i BAS 2026, verifieras mot Excel)
-`4010` Inköp material/varor · `4531–4537` Inköp tjänster utland (rutorna 21/22) · `4515–4517` Inköp varor EU (ruta 20) · `4600` Underentreprenader
-
-### Kostnader (klass 5–6)
-`5010` Lokalhyra · `5220` Hyra inventarier · `5410` Förbrukningsinventarier (< 29 600 kr) · `5420` Programvaror · `5460` Förbrukningsmaterial · `5611/5612/5613/5615` Bilkostnader · `5800/5810/5831` Resor · `5910` Annonsering · `6071` Representation avdragsgill · `6072` Representation ej avdragsgill · `6110` Kontorsmaterial · `6212` Mobiltelefon · `6230` Bredband/datakommunikation · `6250` Porto · `6310` Företagsförsäkring · `6530` Redovisningstjänster · `6540` IT-tjänster/SaaS · `6550` Konsultarvoden · `6570` Bankkostnader · `6590` Övr externa tjänster · `6970` Facklitteratur · `6981/6982` Föreningsavgifter (avdr/ej avdr) · `6991/6992` Övr kostnader (avdr/ej avdr)
-
-### Avskrivningar & finansiellt (klass 7–8)
-`7832` Avskr inventarier · `7835` Avskr datorer · `7973/3973` Förlust/vinst avyttring inventarier · `8310` Ränteintäkter · `8410` Räntekostnader · `8423` Kostnadsränta skattekonto (ej avdr) · `8999` Årets resultat
-
-**OBS:** Inga 7010/7510-lönekonton aktiveras (inga anställda). Egenavgifter bokförs INTE (K1 — hanteras som schablonavdrag i NE-bilagan).
-
-### Momskodsmappning (konto → deklarationsruta)
-| Momskod | Rutor | Konton |
+| Område | Läge i koden | Konsekvens för AB |
 |---|---|---|
-| Försäljning 25/12/6 % | 05 + 10/11/12 | 30xx → 2611/2621/2631 |
-| EU-försäljning tjänster | 39 (+ periodisk sammanställning) | 3308 |
-| EU-försäljning varor | 35 | 3106 |
-| Export | 36, 40 | 3105, 3305 |
-| EU-inköp varor | 20 + 30–32 + 48 | 45xx → 2614 + 2645 |
-| Inköp tjänster utland | 21/22 + 30 + 48 | 4531–4537 |
-| Ingående moms | 48 | 2640, 2645 |
-| Att betala/få tillbaka | 49 | 2650 |
+| Skattekalender (`src/lib/tax-calendar.ts`) | Bara EF: F-skatt som eget uttag, Inkomstdeklaration 1 + NE | Fel frister. AB behöver INK2, AGI, årsredovisning, årsstämma |
+| Snabbhändelser (`src/lib/posting/quick-events.ts`) | Eget uttag, egen insättning, F-skatt mot 2012 | Konton och begrepp finns inte i AB |
+| Regelvärden (`rule_values`) | Bara EF-värden (egenavgifter, räntefördelning, expansionsfond) | Bolagsskatt, arbetsgivaravgifter, periodiseringsfond 25 %, schablonintäkt och statslåneränta saknas |
+| Årsavslut (`src/lib/actions/yearend.ts`) | K1-bokslut, NE, resultat till 2019/2010 | AB kräver bokslutsdispositioner, skatteberäkning (8910/2510), resultat till 2099 och disposition vid stämma |
+| Räkenskapsår (`fiscal_years.year` är unikt heltal) | Kalenderår antas | Brutet eller förlängt första räkenskapsår stöds inte |
+| Lön och AGI | Finns bara i licensversionen | Ägarlön kan inte bokföras strukturerat, ingen AGI-fil |
+| Skattesimulator (`src/lib/tax/calc.ts`) | EF-modell | Irrelevant, döljs redan för AB |
+| Årsredovisning | K2-dokument för utskrift | Ingen digital inlämning, noter och förvaltningsberättelse ska verifieras mot K2 |
 
----
+## Beslut som ägaren behöver fatta
 
-## 6. Moduler & funktioner
+Dessa styr prioriteringen och går inte att verifiera i kod eller källa.
 
-### Modul A — Dashboard & skattekalender
-- Översikt: resultat hittills i år, obetalda kundfakturor (+ förfallna), obetalda leverantörsfakturor, bankkontosaldo enligt bokföringen (1930), momsstatus innevarande period, prognos "din vinst efter skatt/egenavgifter hittills".
-- **Att göra-lista**: förfallna fakturor att påminna, momsdeklaration X dagar kvar, F-skatt den 12:e, inkomstdeklaration + NE senast 2 maj, obokförda underlag.
-- Skattekalender genereras automatiskt utifrån momsperiod-inställningen och EU-handel ja/nej.
-
-### Modul B — Fakturering
-- **Kundregister**: kundnr auto, momstyp (SE / EU omvänd / export) som styr kontering + lagtext på fakturan.
-- **Artikelregister**: pris, enhet, momssats, försäljningskonto per artikel. Fria textrader stöds också.
-- **Faktura**: autonummer (obruten serie), OCR med Luhn + längdsiffra, förfallodatum från betalningsvillkor, rader med antal/à-pris/rabatt/momssats per rad, moms beräknas per sats och redovisas per sats på fakturan (lagkrav), öresavrundning → 3740. Status utkast (redigerbar) → bokförd (låst, verifikat skapas†).
-- **PDF** enligt momslagens fullständiga fakturakrav + logotyp; **e-postutskick** med PDF via Resend; markeras som skickad.
-- **Kreditfaktura**: skapas från bokförd faktura, speglar raderna, obligatorisk referens till originalet, kvittas i reskontran.
-- **Betalningsregistrering**: manuell (ingen bank ännu) — datum + belopp, delbetalning ger kvarstående öppen post. Verifikat auto†.
-- **Påminnelser**: lista förfallna → generera påminnelse-PDF/mail (nr 1, 2...), valfri påminnelseavgift och dröjsmålsränta (referensränta + 8 % default).
-- **Kundreskontra**: öppna poster, åldersanalys, avstämning mot 1510.
-- v1.5: återkommande fakturor (mall + intervall). v2: offert→faktura, ROT/RUT, e-faktura/Peppol, flervaluta.
-
-† **Konteringslogik styrs av metod:**
-- *Faktureringsmetoden:* vid bokföring av faktura: D 1510 / K 30xx / K 26x1. Vid betalning: D 1930 / K 1510.
-- *Kontantmetoden:* fakturan bokförs INTE vid utfärdande (ligger endast i reskontran). Vid betalning: D 1930 / K 30xx / K 26x1. Vid årsskiftet: automatiskt förslag som bokför alla obetalda fordringar/skulder (lagkravet i BFL 5:2).
-
-### Modul C — Löpande bokföring
-- **Manuellt verifikat**: datum, beskrivning, motpart, rader (konto/debet/kredit/text), bilaga (foto/PDF — drag & drop eller mobilkamera via webben). Balanskontroll live. Momshjälp: ange totalbelopp + momssats → moms delas upp automatiskt.
-- **Snabbhändelser** (Visma-mönstret, guld för EF): "Köp mot kvitto", "**Eget uttag**" (D 2013/K 1930), "**Egen insättning**" (D 1930/K 2018), "**F-skatt**" (D 2012/K 1930), "Milersättning egen bil" (D 5800-konto 25 kr/mil × mil, K 2018 — skattefri kostnadsersättning till dig själv), "Representation" (guidad: antal personer → beräknar avdragsgill del 6071 + ej avdragsgill 6072 + korrekt momslyft max 300 kr/person).
-- **Konteringsmallar**: egna mallar (t.ex. "Mobilräkning: 6212 + 2640") med procent- eller fastbeloppsfördelning.
-- **Verifikationsserier**: A = manuellt, B = kundfakturor, C = leverantörsfakturor, D = moms/omföringar, E = bokslut. Obrutna nummer per serie och år.
-- **Rättelse**: knappen "Ändra verifikat" skapar automatiskt (1) ett vändningsverifikat och (2) ett nytt korrekt verifikat, båda korslänkade till originalet med datum + notering (BFNAR 2013:2). Radering tillåten endast för senaste verifikatet i serien. Historik/spårlogg på allt.
-- **Periodlåsning**: manuell + automatisk vid godkänd momsrapport. Låst period = inga nya verifikat med datum i perioden.
-- **Leverantörsfakturor**: registrering (leverantör, fakturanr, OCR, datum, förfallodatum, belopp, moms, konto, bilaga), reskontra med förfallolistan, manuell betalmarkering. Kontering styrs av metoden (fakturerings: D kostnad + 2640 / K 2440; kontant: bokförs vid betalning).
-
-### Modul D — Moms
-- **Momsrapport per period**: beräknar alla rutor 05–62 från momskodade konton, visar underlag per ruta med drill-down till verifikat.
-- Rimlighetskontroller: utgående moms ≈ 25/12/6 % av försäljningsunderlaget, ingen moms på låsta perioder, ruta 49-avstämning.
-- **Godkännande** skapar omföringsverifikat (2611/2621/2631/2614 + 2640/2645 → 2650) och låser perioden.
-- **eSKD-fil** (XML) för uppladdning på skatteverket.se + tydlig "skriv av dessa rutor"-vy.
-- Betalning av momsskuld registreras: D 2650 / K 1930.
-- Periodisk sammanställning-underlag vid EU-tjänsteförsäljning (ruta 39).
-
-### Modul E — "Lön" för EF: eget uttag & skatt
-- **Uttagsöversikt**: alla egna uttag/insättningar under året, netto mot eget kapital.
-- **Uttagssimulator**: ange önskat månadsuttag → visar beräknat årsresultat, egenavgifter (28,97 % med nedsättning), schablonavdrag 25 %, kommunalskatt (inställbar sats) + ev. statlig skatt över 660 400 kr → "så mycket kostar ditt uttag, så mycket blir kvar i firman".
-- **Preliminärskatt-koll**: registrera SKV:s debiterade F-skatt → jämför löpande mot simulerad faktisk skatt → varning "höj/sänk din preliminärskatt (lämna preliminär inkomstdeklaration)".
-- Milersättning och traktamente som snabbhändelser (skattefria ersättningar, aktuella schablonbelopp från regelvärdestabellen).
-
-### Modul F — Rapporter
-- **Resultatrapport**: vald period + jämförelse föregående år, ackumulerat, BAS-rubriksstruktur, drill-down rubrik → konto → verifikat.
-- **Balansrapport**: IB / förändring / UB per konto.
-- **Huvudbok** (per konto, med löpande saldo), **dagbok/verifikationslista** (i registreringsordning).
-- **Momsrapporter** historik, **kundreskontra/leverantörsreskontra** med åldersanalys.
-- Export: PDF och CSV/Excel på alla rapporter.
-- **SIE 4E-export** (hela räkenskapsår: #KONTO, #SRU, #IB/#UB/#RES, #VER/#TRANS, CP437-kodning) — revisorn/skatteprogram kan ta emot allt. SIE-import för ingående balanser vid uppstart (v1.5).
-
-### Modul G — Årsavslut (förenklat årsbokslut + NE)
-1. **Checklista** (Visma-mönstret): alla perioder låsta? reskontror stämda mot 1510/2440? 1930 stämt mot kontoutdrag? moms slutredovisad? obetalda poster bokförda (kontantmetoden)? underlag på alla verifikat?
-2. **Avskrivningar**: anläggningsregistret räknar 30-regeln vs 20-regeln, väljer optimalt (eller manuellt), skapar avskrivningsverifikat (D 7832 / K 1229). Direktavdragskontroll < 29 600 kr. K1-regeln: hela underlaget ≤ halvt prisbasbelopp → direktavskrivning.
-3. **Förenklat årsbokslut (K1)**: genereras automatiskt från bokföringen enligt SKV 2150-strukturen (B1–B16, R1–R12). Signeras och arkiveras (skickas ej in).
-4. **Skatteplanering**: kalkylator för periodiseringsfond (30 %, med 6-årsöversikt över fonder), positiv räntefördelning (8,55 % på kapitalunderlag > 50 000 kr, sparat utrymme), expansionsfond — visar skatteeffekt av varje val. Endast deklarationsposter, bokförs ej.
-5. **NE-bilaga**: autofylls via konto→NE-ruta-mappningen (B1–B16, R1–R12 + justeringar R13–R48 inkl. R43 schablonavdrag 25 %) → siffror att föra in på skatteverket.se (SRU-filexport som v2).
-6. **Årsavslut**: resultat bokförs (8999 → 2019), eget kapital nollställs (2011/2012/2013/2018/2019 → 2010), IB skapas för nytt år, året låses.
-
-### Modul H — Inställningar
-Företagsuppgifter, logotyp, momsmetod + momsperiod, fakturadefaults (villkor, påminnelseavgift, ränta), verifikationsserier, kontoplan (aktivera/lägg till BAS-konton, redigera momskod/NE-mappning), regelvärden per år (förifyllda 2026, uppdateras årligen), export av all data (SIE + bilagor som zip = arkiveringstrygghet).
-
----
-
-## 7. Byggfaser
-
-| Fas | Innehåll | Resultat |
+| Fråga | Påverkar | Rekommendation |
 |---|---|---|
-| **0. Grund** | Projekt, Supabase-schema, auth, inställningar, räkenskapsår, kontoplan seedad (BAS 2026 + momskoder + NE/SRU-mappning), regelvärdestabell | Tomt men korrekt uppsatt system |
-| **1. Bokföringsmotor** | Posting engine, verifikat + serier + balanstriggers, snabbhändelser (uttag/insättning/F-skatt/kvitto), bilagor, rättelselogik, periodlåsning, huvudbok + dagbok + RR/BR | Kan bokföra hela firman manuellt — redan användbart |
-| **2. Fakturering** | Kunder, artiklar, faktura → PDF → e-post, OCR, kreditfaktura, betalningsregistrering, reskontra, påminnelser, båda momsmetoderna | Löpande fakturering klar |
-| **3. Moms + leverantörer** | Leverantörsreskontra, momsrapport med rutmappning, omföringsverifikat, eSKD, periodlåsning-koppling, skattekalender + dashboard | Momsdeklarationen tar 5 minuter |
-| **4. Rapporter + SIE** | Alla rapporter med drill-down, exports, SIE 4E | Revisorssäkert |
-| **5. Årsavslut** | Anläggningsregister + avskrivningar, checklista, K1-bokslut, NE-bilaga, skatteplanering, uttagssimulator, årsrullning | Hela året stängs i programmet |
+| Räkenskapsår: kalenderår eller brutet? | Fas 1, datamodellen | Kalenderår. Systemet stödjer bara det i dag |
+| Första räkenskapsåret: förkortat eller förlängt (max 18 månader)? | Datamodellen, årsavslut | Förkortat om bolaget bildas sent på året, annars blir fas 1 större |
+| Tar ägaren lön från bolaget? | Om fas 2 byggs alls | Troligen ja, då prioriteras fas 2 |
+| Momsperiod: månad, kvartal eller år? | Skattekalender, inställning | Kvartal om omsättningen är under 40 mkr |
+| Revisor? | Årsredovisningsflödet | Frivilligt under gränsvärdena, verifiera i registret |
+| Bankkoppling via Enable Banking eller CSV-import? | Deploy och avtal | CSV först, koppling senare |
+| K2 eller K3? | Årsredovisning | K2 för mindre aktiebolag |
 
-**Medvetet senare (v2+):** bankkoppling via PSD2 (datamodellen förberedd: betalningar är egna entiteter), e-faktura/Peppol, AI-tolkning av kvitton, ROT/RUT, offert→order, SRU-filinlämning, räntefakturor, revisorsinloggning, flervaluta, OSS.
+## Faser
 
----
+### Fas 0 — Grund och regelverksprocess (pågår)
 
-## 7b. Kompletteringsanalys (2026-07-01, efter fas 2)
+- [x] Nya `CLAUDE.md`, `AGENTS.md`, `PLAN.md`
+- [x] `docs/REGELVERK.md` med register, årschecklista och logg
+- [ ] Alla regelvärden som uppströms seedat för 2026 verifieras mot källa och får
+      verifieringsdatum i registret
+- [x] `pnpm test` grön som baslinje (74 tester, 2026-09-04)
+- [ ] `pnpm lint` grön. Faller i dag med 9 fel och 3 varningar i uppströms kod
+      (react-hooks-regler i bl.a. `src/lib/reports/pdf-docs.tsx`). Rättas
+      innan de första kodändringarna, så att lint kan vara ett krav i CI
+- [ ] Supabase-projekt, deploy och inloggning enligt `docs/INSTALLATION.md`
+      (ägaren)
+- [ ] Bolagstyp satt till aktiebolag i inställningarna, bolagets uppgifter
+      inlagda
 
-Luckor identifierade utöver ursprungsplanen — krävs för att programmet ska vara *komplett*:
+### Fas 1 — AB-korrekt grund
 
-| # | Komplettering | Varför | Fas |
-|---|---|---|---|
-| 1 | **Inställningssida** — företagsuppgifter (orgnr, VAT-nr SE…01, adress, bankgiro, logotyp), fakturadefaults, periodlåsnings-UI, hantering av räkenskapsår + serier | Utan orgnr/bankgiro är faktura-PDF:n inte ens laglig — fakturakraven kräver säljarens uppgifter. **Blockerar skarp användning.** | **3** |
-| 2 | **Ingående balanser / migrering** — SIE-import eller manuell IB-registrering + verifikat för historik jan–jun 2026 | Firman har redan bokföring för 2026 någonstans — den måste in innan systemet kan ta över. | **3–4** |
-| 3 | **E-postutskick av faktura** (Resend, kräver API-nyckel + domänverifiering getshield/haus) | Planerat men ej byggt — nu bara PDF-nedladdning. | 3 |
-| 4 | **Påminnelse-PDF + dröjsmålsränta** — nu registreras påminnelser bara som poster | Komplett kravflöde: påminnelse 1, 2, med avgift + ränta enligt räntelagen | 4 |
-| 5 | **Arkivexport** — zip med SIE + alla verifikat-PDF + underlag per räkenskapsår | 7 års arkiveringsplikt: datan får inte vara fånge i en databas | 4 |
-| 6 | **Körjournal** — mil, datum, syfte, resmål | Skattefri milersättning kräver körjournal som underlag vid granskning | 5 |
-| 7 | **Traktamente-snabbhändelse** (belopp finns redan i regelvärden) | Komplettering av snabbhändelserna | 3 |
-| 8 | **Representation: syfte + deltagarlista** på snabbhändelsen | SKV-krav på underlag för representation | 3 |
-| 9 | **Underlagsinkorg** — ladda upp kvitton först, bokför senare (Fortnox-mönstret) | Vardagsflödet: fota nu, bokför på söndag | 5 |
-| 10 | **CSV-import av kontoutdrag** + matchning mot reskontror/förslag | 80 % av bankkopplingens nytta utan PSD2-avtal — mellansteg tills riktig koppling | 6 |
-| 11 | **Periodiseringar** (förutbetalda kostnader 1710/1790/2990) | Konton finns; enkel guide vid bokslut räcker för K1 | 5 |
-| 12 | **Periodisk sammanställning** (EU-tjänsteförsäljning ruta 39) | Lagkrav om EU-kunder faktureras | 3 |
-| 13 | **Preliminär inkomstdeklaration-underlag** — jämför bokfört resultat mot debiterad F-skatt löpande | Undvika kvarskatt/överinbetalning; hör ihop med uttagssimulatorn | 5 |
-| 14 | **Global sökning** (verifikat, fakturor, belopp, motpart) | Hygienfunktion när volymen växer | 6 |
-| 15 | **Mobilanpassning** (responsiv sidebar, kvittofoto via mobilkamera) | Kvitton fotas med mobilen i verkligheten | 6 |
-| 16 | **Enhetstester** för posting engine, momsberäkning, OCR, momsrapportens rutmappning | Bokföringslogik får inte regressa — golden tests | 3+ |
-| 17 | **Deploy** — Vercel + Supabase cloud, stark auth, backupstrategi | Molnprojekt = säker lagring + åtkomst överallt | 6 |
-| 18 | **Återkommande fakturor** (tabell finns, UI saknas) | Månadsavtal faktureras automatiskt | 6 |
+Mål: löpande bokföring, moms och skattekalender är rätt för ett aktiebolag utan
+anställda.
 
-Avskrivningar/anläggningsregister var redan planerat (fas 5): 30/20-regeln, direktavdrag < 29 600 kr, K1-regeln om hela underlaget ≤ halvt prisbasbelopp, avyttring/utrangering med 3973/7973.
+- Regelvärden för AB i `rule_values`, verifierade och seedade med ny migration:
+  bolagsskatt, arbetsgivaravgifter (full sats och eventuella nedsättningar),
+  periodiseringsfond för juridisk person, statslåneränta och schablonintäkt,
+  gränsvärden för revisionsplikt, gränsvärden för mindre företag enligt
+  årsredovisningslagen
+- Skattekalender per bolagstyp: moms (oförändrad), debiterad preliminärskatt
+  (skattekostnad, inte uttag), arbetsgivardeklaration om lön, INK2,
+  årsstämma och årsredovisning till Bolagsverket
+- Snabbhändelser för AB: preliminärskatt, aktieägartillskott, utlägg och lån
+  från aktieägare. EF-händelser döljs
+- Kontoplan för AB kontrolleras: eget kapital (2081, 2091, 2098, 2099),
+  skatteskulder (2510, 2518), 2893, 8910, samt kopplingstabellen till INK2
+- Årsavslut för AB: bokslutsdispositioner (periodiseringsfond 8811/8819 mot
+  212x), skatteberäkning med ej avdragsgilla poster och schablonintäkt,
+  bokning av årets skatt, årets resultat till 2099, resultatdisposition efter
+  stämma, ingående balanser och låsning
+- Tester i `src/lib/__tests__/` för skatteberäkning AB och kalendern
 
----
+### Fas 2 — Lön och arbetsgivardeklaration (om ägaren tar lön)
 
-## 8. Verifieras vid implementation (flaggat i researchen)
-- BAS 2026 klass 4-struktur — bygg kontoseed från officiella Excel-filen (bas.se)
-- Exakta NE-radnummer för justeringsposter mot SKV:s blankett för IÅ 2026 (publiceras inför deklarationen 2027)
-- SRU-koder per konto (BAS-kopplingstabellen)
-- eSKD-filformatets aktuella XML-schema (skatteverket.se)
-- Senareläggningsfrister BFNAR 2013:2 (för ev. "bokför senast"-påminnelser)
+- Lönekörning för en person: bruttolön, preliminärskatt enligt skattetabell,
+  arbetsgivaravgifter, nettolön, lönespecifikation som PDF
+- Kontering 7010/7510/2710/2731/1930 via posting engine, aldrig manuellt
+- Arbetsgivardeklaration på individnivå (AGI) som XML enligt Skatteverkets
+  tekniska beskrivning, deadline i kalendern
+- Skattetabeller per år som data, inte kod. Nytt år kräver nya tabeller
+- Bevakas: förmåner, semesterlöneskuld, sjuklön. Byggs inte förrän behov finns
+
+### Fas 3 — Årsredovisning och deklaration komplett
+
+- K2-dokumentet verifieras mot senaste BFNAR 2016:10: förvaltningsberättelse
+  med flerårsöversikt, förändringar i eget kapital och resultatdisposition,
+  noter (redovisningsprinciper, medelantal anställda)
+- Fastställelseintyg och mall för årsstämmoprotokoll
+- Digital inlämning till Bolagsverket. Kravet på obligatorisk digital
+  inlämning bevakas i registret
+- INK2, INK2R och INK2S verifieras mot årets SRU-specifikation och testas i
+  Skatteverkets testmiljö
+
+### Fas 4 — Årsrullning (återkommande varje november–december)
+
+- Årschecklistan i `docs/REGELVERK.md` körs: nya rader i `rule_values`, ny
+  BAS-kontoplan, momssatser, skattetabeller, frister, blankettkoder
+- En migration per år, namngiven `YYYYMMDD_rule_values_YYYY.sql`
+- Registret får nya verifieringsdatum
+
+### Fas 5 — Senare, lägre prioritet
+
+- Stöd för brutet och förlängt räkenskapsår
+- Underlag för K10 (utdelningsutrymme enligt 3:12-reglerna)
+- E-faktura via Peppol. ViDA-kraven bevakas
+- Fler bankformat i CSV-importen
+
+## Utanför scope
+
+- AI-tolkning av kvitton och automatisk bokföring. Systemet föreslår, ägaren
+  bokför
+- Flera bolag i samma installation
+- Funktioner för handelsbolag
