@@ -65,7 +65,7 @@ och för att den som verifierar ska veta vad koden antar i dag.
 | Regel | Plats i koden | Källa | Verifierad | Nästa kontroll | Förväntat | Status |
 |---|---|---|---|---|---|---|
 | Arbetsgivaravgifter, full sats | saknas | SAL 2 kap. 26 § | — | fas 1 | 31,42 % | saknas |
-| Nedsatta avgifter (ålder, unga) | saknas | SAL 2 kap. | — | fas 2 | — | saknas |
+| Nedsatta avgifter (ålder, unga) | saknas | SAL 2 kap., lag (2026:100) om tillfälligt nedsatt arbetsgivaravgift för unga | 2026-09-04 | fas 2 | halv avgift (endast ålderspensionsavgift + halva övriga avgifter/allmän löneavgift) för 19–23-åringar på ersättning ≤ 25 000 kr/mån, gäller 2026-04-01–2027-09-30 | saknas |
 | Skattetabeller för preliminärskatt | saknas | Skatteverket, nya varje år | — | fas 2 | — | saknas |
 | Arbetsgivardeklaration på individnivå (AGI), XML-format | saknas | Skatteverkets tekniska beskrivning | — | fas 2 | — | saknas |
 | AGI och avgifter betalas 12:e (17:e januari och augusti) | saknas i kalendern | SFL 26 kap. | — | fas 2 | — | saknas |
@@ -76,21 +76,21 @@ och för att den som verifierar ska veta vad koden antar i dag.
 
 | Regel | Plats i koden | Källa | Verifierad | Nästa kontroll | Förväntat | Status |
 |---|---|---|---|---|---|---|
-| Prisbasbelopp | `rule_values.prisbasbelopp` | regeringen.se / SCB | — | varje september | 59 200 kr för 2026 | seedad uppströms |
-| Förhöjt prisbasbelopp | `rule_values.prisbasbelopp_forhojt` | regeringen.se / SCB | — | varje september | 60 500 kr för 2026 | seedad uppströms |
+| Prisbasbelopp | `rule_values.prisbasbelopp` | regeringen.se / SCB | 2026-09-04 | varje september | 59 200 kr för 2026 | verifierad |
+| Förhöjt prisbasbelopp | `rule_values.prisbasbelopp_forhojt` | regeringen.se / SCB | 2026-09-04 | varje september | 60 500 kr för 2026 | verifierad |
 | Inkomstbasbelopp | `rule_values.inkomstbasbelopp` | pensionsmyndigheten.se | — | varje november | 83 400 kr för 2026 | seedad uppströms |
-| Riksbankens referensränta (dröjsmålsränta = referensränta + 8 procentenheter) | `rule_values.referensranta` | riksbank.se, räntelagen 6 § | — | varje januari och juli | 2,00 % | seedad uppströms |
+| Riksbankens referensränta (dröjsmålsränta = referensränta + 8 procentenheter) | `rule_values.referensranta` | riksbank.se, räntelagen 6 § | 2026-09-04 | varje januari och juli | 2,00 % från 2026-07-01 | verifierad |
 
 ## 6. Årsredovisning, årsstämma och Bolagsverket
 
 | Regel | Plats i koden | Källa | Verifierad | Nästa kontroll | Förväntat | Status |
 |---|---|---|---|---|---|---|
-| Årsredovisning enligt K2 | `src/lib/k2/report.ts` | BFNAR 2016:10 med ändringar | — | 2026-11 | — | seedad uppströms |
+| Årsredovisning enligt K2 | `src/lib/k2/report.ts` | BFNAR 2016:10 med ändringar (BFN beslut 2025-06-16, gäller räkenskapsår som inleds efter 2025-12-31) | 2026-09-04 | 2026-11 | — | seedad uppströms |
 | Gränsvärden för mindre företag | saknas | ÅRL 1 kap. 3 § | — | fas 1 | 50 anställda, 40 mkr balansomslutning, 80 mkr nettoomsättning | saknas |
 | Årsstämma senast sex månader efter räkenskapsårets slut | saknas i kalendern | ABL 7 kap. 10 § | — | fas 1 | — | saknas |
 | Årsredovisning till Bolagsverket senast sju månader efter räkenskapsårets slut | saknas i kalendern | ÅRL 8 kap. 3 § | — | fas 1 | — | saknas |
 | Revisionsplikt, gränsvärden | saknas | ABL 9 kap. 1 § | — | fas 1 | mer än 3 anställda, 1,5 mkr balansomslutning, 3 mkr nettoomsättning, två av tre två år i rad | saknas |
-| Digital inlämning av årsredovisning | saknas | bolagsverket.se | — | 2026-12 | frivillig i dag, obligatorium har föreslagits | bevakas |
+| Digital inlämning av årsredovisning | saknas | bolagsverket.se | 2026-09-04 | 2026-12 | frivillig i dag. Ursprungligt förslag om obligatorium (2026-01-01) blev inte lag; frågan drivs nu i utredningen Ju 2025:10, slutbetänkande väntas 2026-11-06 | bevakas |
 | Resultatdisposition och förändringar i eget kapital i förvaltningsberättelsen | `src/lib/k2/report.ts` | K2 kap. 4–5 | — | fas 3 | — | seedad uppströms |
 
 ## 7. Kontoplan
@@ -108,12 +108,13 @@ kan komma. Kontrolleras vid varje årsrullning och när en agent ser nyheter.
 
 | Vad | Varför det spelar roll | Källa att följa | Senast kollad |
 |---|---|---|---|
-| Obligatorisk digital inlämning av årsredovisning | Fas 3, inlämningsflödet | bolagsverket.se, regeringen.se | — |
-| ViDA (moms i den digitala tidsåldern): e-fakturering och digital rapportering i EU | Fakturamodulen, Peppol | EU-kommissionen, Skatteverket | — |
-| Ändrade gränsvärden för revisionsplikt | Avgör om revisor behövs | regeringen.se | — |
-| Ändringar i K2 (BFN:s översyn av K-regelverken) | Årsredovisningen | bfn.se | — |
-| Livsmedelsmomsen upphör 2027-12-31 | `vat_rates`, faktura-UI | Skatteverket | — |
-| Ny BAS-kontoplan varje år | Kontoplanen, momskoder, SRU | bas.se | — |
+| Obligatorisk digital inlämning av årsredovisning | Fas 3, inlämningsflödet. Ursprungligt förslag (ikraftträdande 2026-01-01) blev inte lag. Frågan drivs nu i utredningen "En mer säker och digital bolagsrätt" (Ju 2025:10), delbetänkande SOU 2026:26 (2026-04-28), slutbetänkande väntas 2026-11-06 | bolagsverket.se, regeringen.se, SOU 2026:26 | 2026-09-04 |
+| ViDA (moms i den digitala tidsåldern): e-fakturering och digital rapportering i EU | Fakturamodulen, Peppol. Direktivet trädde i kraft 2025-04-14. Gränsöverskridande digital rapportering blir tvingande 2030-07-01. Regeringen tillsatte 2026-02-05 en utredning om nationellt genomförande (inkl. ev. krav för inhemska transaktioner), inget beslut om det än | EU-kommissionen, Skatteverket | 2026-09-04 |
+| Ändrade gränsvärden för revisionsplikt | Avgör om revisor behövs. Bara ett äldre utredningsförslag (SOU 2021:60) och en intresseorganisations rapport (Företagarna, mars 2026) finns, ingen proposition | regeringen.se | 2026-09-04 |
+| Fortsatt översyn av K-regelverken hos BFN | Årsredovisningen. Den kända K2-ändringen är nu i kraft, se avsnitt 6. Ett separat BFN-beslut 2026-05-18 ändrar BFNAR 2017:3 (årsbokslut för enskild näringsidkare/handelsbolag) från räkenskapsår efter 2026-12-31 — berör inte AB, men visar att översynen fortsätter | bfn.se | 2026-09-04 |
+| Livsmedelsmomsen upphör 2027-12-31 | `vat_rates`, faktura-UI. Slutdatumet står fast. En utredning om differentierad matmoms ska redovisas senast 2026-12-22 och avgör vad som gäller från 2028-01-01 | Skatteverket, riksdagen.se (bet. 2025/26:SkU9) | 2026-09-04 |
+| Ny BAS-kontoplan varje år | Kontoplanen, momskoder, SRU. Inget publicerat för BAS 2027 ännu, väntas som vanligt i december | bas.se | 2026-09-04 |
+| BFN avvecklas 2026-12-31; normgivning för K2/K3 förs över till Revisorsinspektionen (byter namn) och en ny Nämnd för god redovisningssed från 2027-01-01 | Källhänvisningarna i `AGENTS.md` och det här registret pekar i dag på bfn.se — måste bytas ut från 2027 | regeringen.se | 2026-09-04 |
 
 ## 9. Årschecklista (november–december)
 
@@ -140,4 +141,7 @@ Nyaste överst. En rad per verifiering eller ändring: datum, vad, källa, utfal
 
 | Datum | Vad | Källa | Utfall |
 |---|---|---|---|
+| 2026-09-04 | Veckovis bevakning: prisbasbelopp (59 200 kr), förhöjt prisbasbelopp (60 500 kr) och referensräntan (2,00 % från 2026-07-01) bekräftade oförändrade mot förväntat | regeringen.se pressmeddelande "Prisbasbelopp för 2026 fastställt", riksbank.se nyhet "Referensräntan fastställd till 2,00 procent" | Verifieringsdatum satt i avsnitt 5, inga kodändringar |
+| 2026-09-04 | Veckovis bevakning: BFN beslutade 2025-06-16 om ändringar i K2 (BFNAR 2016:10), gäller räkenskapsår som inleds efter 2025-12-31 — skärpta gränser för vem som får tillämpa K2, höjd periodiseringsgräns, nya/ändrade balansposter m.m. | bfn.se/andringar-i-k2-arsredovisning-for-mindre-foretag/, bfn.se/fragor-och-svar/andringar-i-k2-och-k3-fran-2026/ | Registrerat i avsnitt 6. Ingen kodändring: nuvarande `src/lib/k2/report.ts` renderar inga av de omdöpta/tillagda posterna. Plan för full verifiering mot BFNAR 2016:10 utökad i `PLAN.md` fas 3 |
+| 2026-09-04 | Veckovis bevakning av avsnitt 8: digital inlämning, ViDA, revisionsplikt, K2-översyn, livsmedelsmoms och BAS-kontoplan kontrollerade. Ny bevakningspost tillagd om BFN:s avveckling 2026-12-31 (normgivning flyttar till Revisorsinspektionen/ny nämnd 2027-01-01). Nedsatt arbetsgivaravgift för 19–23-åringar (lag 2026:100) identifierad och infogad i avsnitt 4 | se avsnitt 8 och avsnitt 4 för källor per post | Avsnitt 4 och 8 uppdaterade, inga kodändringar |
 | 2026-09-04 | Registret skapat vid fork. Alla uppströms värden markerade "seedad uppströms". AB-specifika regler inventerade och markerade "saknas" | Kodgenomgång av `supabase/migrations/` och `src/lib/` | Fas 0 och fas 1 i `PLAN.md` |
