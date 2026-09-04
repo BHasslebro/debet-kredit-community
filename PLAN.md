@@ -94,7 +94,15 @@ anställda.
 
 - K2-dokumentet verifieras mot senaste BFNAR 2016:10: förvaltningsberättelse
   med flerårsöversikt, förändringar i eget kapital och resultatdisposition,
-  noter (redovisningsprinciper, medelantal anställda)
+  noter (redovisningsprinciper, medelantal anställda). BFN beslutade
+  2025-06-16 om ändringar som gäller för räkenskapsår som inleds efter
+  2025-12-31: skärpta gränser för vem som får tillämpa K2 (kryptotillgångar,
+  utländsk filial, aktierelaterade ersättningar eller konvertibla
+  skuldebrev utesluter K2 alltid; byggnadsintäkter ≥75 % av
+  nettoomsättningen eller en väsentlig uppskjuten skatteskuld utesluter K2
+  för företag över lättnadsreglens gränsvärden), höjd periodiseringsgräns
+  (7 000 kr), ny balanspost för tomträtter, uppdelad post för färdiga
+  varor/handelsvaror, med mera. Se `docs/REGELVERK.md` avsnitt 6 för källor
 - Fastställelseintyg och mall för årsstämmoprotokoll
 - Digital inlämning till Bolagsverket. Kravet på obligatorisk digital
   inlämning bevakas i registret
