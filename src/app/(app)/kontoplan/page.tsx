@@ -35,7 +35,10 @@ export default async function ChartOfAccountsPage() {
       <div>
         <h1 className="text-2xl font-semibold">Kontoplan</h1>
         <p className="text-sm text-muted-foreground">
-          BAS 2026-urval för enskild firma (tjänsteföretag). {accounts?.length ?? 0} aktiva konton.
+          {/* Kontoplanen är samma BAS-urval oavsett bolagsform — den gamla
+              texten påstod "för enskild firma" även för ett aktiebolag som
+              valt sin bolagsform i onboardingen. */}
+          BAS 2026-urval för mindre tjänsteföretag. {accounts?.length ?? 0} aktiva konton.
         </p>
       </div>
       {[...grouped.entries()].map(([cls, list]) => (

@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { bookVerification } from "@/lib/actions/verifications";
 import {
   egetUttag, egenInsattning, fSkatt, kopMotKvitto, milersattning, representation,
-  traktamente, type QuickEventResult,
+  traktamente, ownerPayableAccount, type QuickEventResult,
 } from "@/lib/posting/quick-events";
 import { linkAttachment } from "@/lib/actions/inbox";
 import { savePostingTemplate } from "@/lib/actions/templates";
@@ -25,19 +25,43 @@ type FormRow = { account: string; debit: string; credit: string };
 
 const emptyRow = (): FormRow => ({ account: "", debit: "", credit: "" });
 
+/**
+ * Snabbhändelser som bokar mot ägarens egna kapitalkonton (2012 debiterad
+ * F-skatt, 2013 eget uttag, 2018 egen insättning). Ett aktiebolag har inte de
+ * posterna: ägaren tar lön eller utdelning, och bolaget betalar bolagsskatt,
+ * inte F-skatt för en fysisk person.
+ *
+ * De erbjöds tidigare oavsett bolagstyp. Ett aktiebolag som bokförde ett eget
+ * uttag fick en balansräkning som inte balanserade i sin egen årsredovisning,
+ * och varningen om det syntes inte i utskriften.
+ *
+ * Milersättning, traktamente och privat utlägg finns kvar för alla
+ * bolagsformer — de byter bara motkonto, se ownerPayableAccount.
+ */
+const SOLE_TRADER_EVENTS = new Set(["uttag", "insattning", "fskatt"]);
+
+const COMPANY_TYPE_LABEL: Record<string, string> = {
+  enskild_firma: "enskild firma",
+  aktiebolag: "aktiebolag",
+  handelsbolag: "handelsbolag",
+};
+
 export function NewVerificationForm({
   accounts,
   seriesCodes,
   rules,
+  companyType = "enskild_firma",
   inboxAttachmentId = null,
   templates = [],
 }: {
   accounts: Account[];
   seriesCodes: string[];
   rules: Record<string, number>;
+  companyType?: string;
   inboxAttachmentId?: string | null;
   templates?: { id: string; name: string; rows: { account: number; side: "debit" | "credit"; share: number }[] }[];
 }) {
+  const isSoleTrader = companyType !== "aktiebolag";
   const router = useRouter();
   const today = todayISO();
   const [busy, setBusy] = useState(false);
@@ -123,7 +147,9 @@ export function NewVerificationForm({
   }
 
   // --- Snabbhändelser ---
-  const [qeType, setQeType] = useState("uttag");
+  // "uttag" finns inte som val i ett aktiebolag — utan det här hade rutan
+  // öppnat tom på ett värde som inte gick att välja tillbaka.
+  const [qeType, setQeType] = useState(isSoleTrader ? "uttag" : "kvitto");
   const [qeDate, setQeDate] = useState(today);
   const [qeAmount, setQeAmount] = useState("");
   const [qeVat, setQeVat] = useState("25");
@@ -138,6 +164,10 @@ export function NewVerificationForm({
 
   function buildQuickEvent(): QuickEventResult | null {
     const amount = parseFloat(qeAmount) || 0;
+    const owner = ownerPayableAccount(companyType);
+    // Ett aktiebolag ska aldrig kunna bokföra ägarens egetkapitalposter, ens
+    // om qeType råkar stå kvar på en gömd händelse.
+    if (!isSoleTrader && SOLE_TRADER_EVENTS.has(qeType)) return null;
     switch (qeType) {
       case "uttag":
         return amount > 0 ? egetUttag(amount) : null;
@@ -147,11 +177,11 @@ export function NewVerificationForm({
         return amount > 0 ? fSkatt(amount) : null;
       case "kvitto":
         return amount > 0 && qeText.trim()
-          ? kopMotKvitto(amount, parseFloat(qeVat), parseInt(qeAccount), qeText, qePrivate)
+          ? kopMotKvitto(amount, parseFloat(qeVat), parseInt(qeAccount), qeText, qePrivate, owner)
           : null;
       case "mil": {
         const mil = parseFloat(qeMil) || 0;
-        return mil > 0 ? milersattning(mil, rules["milersattning"] ?? 25) : null;
+        return mil > 0 ? milersattning(mil, rules["milersattning"] ?? 25, owner) : null;
       }
       case "traktamente": {
         const d = parseInt(qeDays) || 0, h = parseInt(qeHalfDays) || 0, n = parseInt(qeNights) || 0;
@@ -160,7 +190,7 @@ export function NewVerificationForm({
               helt: rules["traktamente_helt"] ?? 300,
               halvt: rules["traktamente_halvt"] ?? 150,
               natt: rules["traktamente_natt"] ?? 150,
-            })
+            }, owner)
           : null;
       }
       case "representation":
@@ -169,7 +199,7 @@ export function NewVerificationForm({
               amount, parseFloat(qeVat), parseInt(qePersons) || 1,
               rules["representation_moms_underlag"] ?? 300,
               rules["representation_enklare"] ?? 60,
-              qePrivate
+              qePrivate, owner
             )
           : null;
       default:
@@ -198,7 +228,9 @@ export function NewVerificationForm({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Snabbhändelse</CardTitle>
-            <CardDescription>Vanliga händelser med färdig kontering för enskild firma.</CardDescription>
+            <CardDescription>
+              Vanliga händelser med färdig kontering för {COMPANY_TYPE_LABEL[companyType] ?? "enskild firma"}.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid sm:grid-cols-2 gap-3">
@@ -207,9 +239,9 @@ export function NewVerificationForm({
                 <Select value={qeType} onValueChange={setQeType}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="uttag">Eget uttag</SelectItem>
-                    <SelectItem value="insattning">Egen insättning</SelectItem>
-                    <SelectItem value="fskatt">F-skatt (preliminärskatt)</SelectItem>
+                    {isSoleTrader && <SelectItem value="uttag">Eget uttag</SelectItem>}
+                    {isSoleTrader && <SelectItem value="insattning">Egen insättning</SelectItem>}
+                    {isSoleTrader && <SelectItem value="fskatt">F-skatt (preliminärskatt)</SelectItem>}
                     <SelectItem value="kvitto">Köp mot kvitto</SelectItem>
                     <SelectItem value="mil">Milersättning egen bil</SelectItem>
                     <SelectItem value="representation">Representation (måltid)</SelectItem>
@@ -313,7 +345,8 @@ export function NewVerificationForm({
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={qePrivate}
                   onChange={(e) => setQePrivate(e.target.checked)} />
-                Betalt privat (bokförs som egen insättning i stället för företagskontot)
+                Betalt privat (bokförs som {isSoleTrader ? "egen insättning" : "skuld till ägaren"} i
+                stället för företagskontot)
               </label>
             )}
 

@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import { kronorToOre, vatFromGross, vatOnNet, roundToKrona } from "../money";
 import { generateOcr, validateOcr } from "../ocr";
 import { calculateTotals, invoicePostingRows } from "../invoicing/totals";
-import { representation, fSkatt, kopMotKvitto, milersattning } from "../posting/quick-events";
+import {
+  representation, fSkatt, kopMotKvitto, milersattning, traktamente, ownerPayableAccount,
+} from "../posting/quick-events";
 import {
   computeVatBoxes, computeVatChecks, vatClosingRows, generateEskd, vatPeriods,
 } from "../vat/report";
@@ -97,6 +99,46 @@ describe("snabbhändelser", () => {
   it("milersättning 25 kr/mil", () => {
     const r = milersattning(20, 25);
     expect(r.rows.find((x) => x.account === 5800)?.debit).toBe(500);
+  });
+
+  /**
+   * Migrationen som la in konto 2820 säger uttryckligen: "Utlägg,
+   * milersättning och traktamente i aktiebolag/handelsbolag krediterar 2820
+   * (skuld till anställd/ägare)". Koden hade ändå 2018 — enskild firmas
+   * egetkapitalkonto — hårdkodat för alla bolagsformer.
+   */
+  describe("ägarens motkonto följer bolagsformen", () => {
+    it("enskild firma krediterar 2018 (egen insättning)", () => {
+      expect(ownerPayableAccount("enskild_firma")).toBe(2018);
+      expect(milersattning(20, 25, ownerPayableAccount("enskild_firma"))
+        .rows.find((x) => x.account === 2018)?.credit).toBe(500);
+    });
+
+    it("aktiebolag och handelsbolag krediterar 2820 (skuld till ägaren)", () => {
+      for (const typ of ["aktiebolag", "handelsbolag"]) {
+        expect(ownerPayableAccount(typ)).toBe(2820);
+        const mil = milersattning(20, 25, ownerPayableAccount(typ));
+        expect(mil.rows.find((x) => x.account === 2820)?.credit).toBe(500);
+        expect(mil.rows.some((x) => x.account === 2018)).toBe(false);
+      }
+    });
+
+    it("kvitto betalt privat i ett AB blir en skuld till ägaren, inte eget kapital", () => {
+      const r = kopMotKvitto(500, 25, 6110, "Kontorsmaterial", true,
+        ownerPayableAccount("aktiebolag"));
+      expect(r.rows.find((x) => x.account === 2820)?.credit).toBe(500);
+      expect(r.rows.some((x) => x.account === 2018)).toBe(false);
+    });
+
+    it("traktamente i ett AB krediterar 2820", () => {
+      const r = traktamente(2, 0, 1, { helt: 300, halvt: 150, natt: 150 },
+        ownerPayableAccount("aktiebolag"));
+      expect(r.rows.find((x) => x.account === 2820)?.credit).toBe(750);
+    });
+
+    it("förvalet är oförändrat för den som inte skickar med något konto", () => {
+      expect(milersattning(20, 25).rows.find((x) => x.account === 2018)?.credit).toBe(500);
+    });
   });
   it("representation: momslyft begränsas till 300 kr underlag/person", () => {
     // Middag 2 personer, 1500 kr inkl 25 % moms → netto 1200, moms 300.

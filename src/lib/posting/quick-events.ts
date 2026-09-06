@@ -12,6 +12,20 @@ export type QuickEventResult = {
   rows: PostingRow[];
 };
 
+/**
+ * Motkontot när ägaren lagt ut privat — milersättning, traktamente, kvitto
+ * betalt med privat kort.
+ *
+ * Enskild firma bokför det som en egen insättning (2018). I aktiebolag och
+ * handelsbolag är ägaren en annan person än bolaget, och beloppet är en skuld
+ * till den anställde/ägaren (2820). Migrationen som la in konto 2820 säger
+ * ordagrant det — men koden hade 2018 hårdkodat för alla bolagsformer, så ett
+ * aktiebolag krediterade enskild firmas egetkapitalkonto.
+ */
+export function ownerPayableAccount(companyType: string): number {
+  return companyType === "enskild_firma" ? 2018 : 2820;
+}
+
 /** Eget uttag: D 2013 / K 1930 */
 export function egetUttag(amountKr: number): QuickEventResult {
   return {
@@ -51,7 +65,8 @@ export function kopMotKvitto(
   vatRatePct: number,
   expenseAccount: number,
   description: string,
-  paidPrivately = false // betalt privat → K 2018 (egen insättning) i stället för 1930
+  paidPrivately = false, // betalt privat → K ownerAccount i stället för 1930
+  ownerAccount = 2018    // se ownerPayableAccount
 ): QuickEventResult {
   const grossOre = kronorToOre(grossKr);
   const vatOre = vatFromGross(grossOre, vatRatePct);
@@ -61,22 +76,33 @@ export function kopMotKvitto(
   ];
   if (vatOre > 0) rows.push({ account: 2640, debit: oreToKronor(vatOre), credit: 0 });
   rows.push({
-    account: paidPrivately ? 2018 : 1930,
+    account: paidPrivately ? ownerAccount : 1930,
     debit: 0,
     credit: grossKr,
-    note: paidPrivately ? "Betalt privat (egen insättning)" : undefined,
+    note: paidPrivately
+      ? (ownerAccount === 2018 ? "Betalt privat (egen insättning)" : "Betalt privat (skuld till ägaren)")
+      : undefined,
   });
   return { description, rows };
 }
 
-/** Milersättning egen bil: D 5800 / K 2018 (skattefri ersättning till dig själv, betald privat) */
-export function milersattning(mil: number, kronorPerMil: number): QuickEventResult {
+/** Milersättning egen bil: D 5800 / K ägarens motkonto (skattefri ersättning, utlagd privat) */
+export function milersattning(
+  mil: number,
+  kronorPerMil: number,
+  ownerAccount = 2018 // se ownerPayableAccount
+): QuickEventResult {
   const amount = Math.round(mil * kronorPerMil * 100) / 100;
   return {
     description: `Milersättning egen bil, ${mil} mil à ${kronorPerMil} kr`,
     rows: [
       { account: 5800, debit: amount, credit: 0, note: `${mil} mil × ${kronorPerMil} kr/mil` },
-      { account: 2018, debit: 0, credit: amount, note: "Skattefri ersättning, egen insättning" },
+      {
+        account: ownerAccount, debit: 0, credit: amount,
+        note: ownerAccount === 2018
+          ? "Skattefri ersättning, egen insättning"
+          : "Skattefri ersättning, skuld till den anställde",
+      },
     ],
   };
 }
@@ -90,7 +116,8 @@ export function traktamente(
   wholeDays: number,
   halfDays: number,
   nights: number,
-  rates: { helt: number; halvt: number; natt: number }
+  rates: { helt: number; halvt: number; natt: number },
+  ownerAccount = 2018 // se ownerPayableAccount
 ): QuickEventResult {
   const amount =
     Math.round((wholeDays * rates.helt + halfDays * rates.halvt + nights * rates.natt) * 100) / 100;
@@ -103,7 +130,10 @@ export function traktamente(
     description: `Traktamente tjänsteresa (${parts})`,
     rows: [
       { account: 5831, debit: amount, credit: 0, note: "Schablonavdrag ökade levnadskostnader" },
-      { account: 2018, debit: 0, credit: amount, note: "Egen insättning" },
+      {
+        account: ownerAccount, debit: 0, credit: amount,
+        note: ownerAccount === 2018 ? "Egen insättning" : "Skuld till den anställde",
+      },
     ],
   };
 }
@@ -120,7 +150,8 @@ export function representation(
   persons: number,
   maxUnderlagKr: number,
   enklareGransKr: number,
-  paidPrivately = false
+  paidPrivately = false,
+  ownerAccount = 2018 // se ownerPayableAccount
 ): QuickEventResult {
   const grossOre = kronorToOre(grossKr);
   const vatOre = vatFromGross(grossOre, vatRatePct);
@@ -161,6 +192,6 @@ export function representation(
   if (isEnklare && nonDeductibleVatOre > 0) {
     rows.push({ account: 6071, debit: oreToKronor(nonDeductibleVatOre), credit: 0 });
   }
-  rows.push({ account: paidPrivately ? 2018 : 1930, debit: 0, credit: grossKr });
+  rows.push({ account: paidPrivately ? ownerAccount : 1930, debit: 0, credit: grossKr });
   return { description: `Representation, ${persons} personer`, rows };
 }
