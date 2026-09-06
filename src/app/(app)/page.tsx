@@ -30,7 +30,7 @@ export default async function DashboardPage() {
       .select("id, verification_date, description, number, verification_series(code)")
       .order("registered_at", { ascending: false }).limit(6),
     supabase.from("settings")
-      .select("vat_period, eu_trade, org_number, bankgiro, dashboard_widgets, dismissed_checklist_steps, checklist_hidden, pays_f_tax")
+      .select("vat_period, eu_trade, org_number, bankgiro, dashboard_widgets, dismissed_checklist_steps, checklist_hidden, pays_f_tax, company_type")
       .eq("id", 1).single(),
     supabase.from("vat_reports").select("period_start, status"),
     supabase.from("invoices").select("id, due_date, total_amount, invoice_payments(amount)")
@@ -47,9 +47,12 @@ export default async function DashboardPage() {
       .select("id, verification_rows!inner(account)")
       .neq("source", "correction")
       .gte("verification_rows.account", 3000).lte("verification_rows.account", 3799),
+    // Samma urval som avstämningen och årsavslutet. Momsomföringen,
+    // bokslutsverifikatet och kundfakturorna kan aldrig få ett externt
+    // underlag och ska inte anklagas för att sakna ett.
     supabase.from("verifications")
       .select("id, attachments(id)")
-      .neq("source", "correction"),
+      .in("source", ["manual", "quick_event", "supplier_invoice"]),
   ]);
   const today = todayISO();
   const bal = balances ?? [];
@@ -85,6 +88,8 @@ export default async function DashboardPage() {
   const avgOrder = salesCount > 0 ? revenueYear / salesCount : 0;
 
   // Kom igång-checklistan (Fortnox-mönstret) — bortklickade steg filtreras bort
+  const isSoleTrader = (settings?.company_type ?? "enskild_firma") === "enskild_firma";
+
   const dismissedSteps = new Set(
     Array.isArray(settings?.dismissed_checklist_steps) ? settings.dismissed_checklist_steps : []);
   const checklist = settings?.checklist_hidden ? [] : [
@@ -93,7 +98,11 @@ export default async function DashboardPage() {
       label: "Fyll i företagsuppgifterna",
       done: !!settings?.org_number && !!settings?.bankgiro,
       href: "/installningar",
-      hint: "Personnummer och bankgiro krävs på fakturorna",
+      // En enskild firma identifieras med personnummer, ett AB/HB med
+      // organisationsnummer. Texten var hårdkodad på det förstnämnda.
+      hint: isSoleTrader
+        ? "Personnummer och bankgiro krävs på fakturorna"
+        : "Organisationsnummer och bankgiro krävs på fakturorna",
     },
     {
       id: "first_customer",
@@ -121,7 +130,9 @@ export default async function DashboardPage() {
       label: "Bokför en händelse",
       done: (verCount ?? 0) > 0,
       href: "/verifikat/ny",
-      hint: "Prova en snabbhändelse — t.ex. eget uttag",
+      hint: isSoleTrader
+        ? "Prova en snabbhändelse — t.ex. eget uttag"
+        : "Prova en snabbhändelse — t.ex. köp mot kvitto",
     },
     {
       id: "bank",
@@ -198,7 +209,14 @@ export default async function DashboardPage() {
       : { text: "—", sub: "ingen försäljning ännu" },
     verifikat_count: { text: `${verCount ?? 0} st`, sub: "i obruten serie", href: "/verifikat" },
   };
-  const chosenWidgets = sanitizeWidgetIds(settings?.dashboard_widgets) ?? DEFAULT_WIDGETS;
+  // own_withdrawals summerar 2011/2012/2013 och länkar till /skatt, som bara
+  // gäller enskild firma. Ett aktiebolag fick ändå rutan i
+  // standarduppsättningen: alltid 0 kr, med en länk till en sida som visar
+  // bort dem. Har användaren valt egna rutor rör vi förstås ingenting.
+  const chosenWidgets = sanitizeWidgetIds(settings?.dashboard_widgets)
+    ?? (isSoleTrader
+      ? DEFAULT_WIDGETS
+      : DEFAULT_WIDGETS.map((w) => (w === "own_withdrawals" ? "vat_debt" : w)));
 
   return (
     <div className="space-y-5">

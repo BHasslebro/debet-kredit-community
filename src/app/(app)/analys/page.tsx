@@ -51,7 +51,11 @@ export default async function AnalysPage() {
     }>((f, t) => supabase
       .from("verifications")
       .select("id, number, verification_date, description, source, attachments(id), verification_series(code)")
-      .neq("source", "correction")
+      // Samma urval som avstämningen och årsavslutet använder. Med den gamla
+      // .neq("source", "correction") räknades momsomföringen, bokslutsverifikatet
+      // och varje kundfaktura som "verifikat utan underlag" — de kan aldrig få
+      // ett externt underlag, så räknaren kunde aldrig bli noll.
+      .in("source", ["manual", "quick_event", "supplier_invoice"])
       .order("verification_date", { ascending: false })
       .order("id").range(f, t)),
     supabase.from("accounts").select("number, name").gte("number", 3000).lte("number", 3799),
@@ -133,13 +137,18 @@ export default async function AnalysPage() {
       const amount = Number(r.credit) - Number(r.debit);
       revenueTotal += amount;
       revenuePerMonth[month] += amount;
-      if (v.source !== "correction") salesVerIds.add(v.id);
+      // En rättelse är ingen ny affär. Beloppet ska däremot räknas med
+      // överallt — annars stämmer inte omsättningen. Tidigare undantogs
+      // rättelser bara i salesVerIds, så samma sida kunde visa "11 affärer"
+      // i nyckeltalet och 13 i tabellerna under.
+      const isDeal = v.source !== "correction";
+      if (isDeal) salesVerIds.add(v.id);
       const cust = v.counterparty ?? "(okänd kund)";
       const c = byCustomer.get(cust) ?? { total: 0, count: new Set() };
-      c.total += amount; c.count.add(v.id); byCustomer.set(cust, c);
+      c.total += amount; if (isDeal) c.count.add(v.id); byCustomer.set(cust, c);
       const cat = `${r.account} ${accountName.get(r.account) ?? ""}`.trim();
       const sv = byService.get(cat) ?? { total: 0, count: new Set() };
-      sv.total += amount; sv.count.add(v.id); byService.set(cat, sv);
+      sv.total += amount; if (isDeal) sv.count.add(v.id); byService.set(cat, sv);
     } else if (r.account >= 4000 && r.account <= 7999) {
       const amount = Number(r.debit) - Number(r.credit);
       costRowsForClass.push({ account: r.account, amount });

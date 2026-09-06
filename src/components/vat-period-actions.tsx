@@ -23,6 +23,7 @@ export function VatPeriodActions({
   payable,
   hasEskd,
   verificationId,
+  failedChecks = 0,
 }: {
   periodStart: string;
   periodEnd: string;
@@ -30,6 +31,8 @@ export function VatPeriodActions({
   payable: number;
   hasEskd: boolean;
   verificationId: string | null;
+  /** Antal momskontroller som slår rött för perioden. */
+  failedChecks?: number;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -55,6 +58,18 @@ export function VatPeriodActions({
                 Se till att alla verifikat för perioden är bokförda först.
               </DialogDescription>
             </DialogHeader>
+            {/* Rimlighetskontrollerna visades på sidan men nämndes inte här,
+                och godkännandet är oåterkalleligt: perioden låses permanent
+                och eSKD-filen genereras. Den som godkänner ska se att det
+                finns kontroller som slår rött. */}
+            {failedChecks > 0 && (
+              <p className="text-sm text-destructive">
+                {failedChecks === 1
+                  ? "1 momskontroll slår rött för perioden."
+                  : `${failedChecks} momskontroller slår rött för perioden.`}
+                {" "}Läs dem ovanför knappen först — godkännandet går inte att ångra.
+              </p>
+            )}
             <div className="space-y-1">
               <Label>Upplysning till Skatteverket (valfri)</Label>
               <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3}

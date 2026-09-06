@@ -135,6 +135,7 @@ export default async function VatPage({
             payable={payable}
             hasEskd={!!report?.eskd_xml}
             verificationId={report?.verification_id ?? null}
+            failedChecks={checks.filter((c) => !c.ok).length}
           />
         </CardContent>
       </Card>
