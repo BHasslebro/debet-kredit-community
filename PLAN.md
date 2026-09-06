@@ -1,5 +1,12 @@
 # Debet & Kredit — Komplett funktionsplan
 
+> **Historiskt dokument.** Det här är den ursprungliga v1-planen, bevarad för
+> den som forkar och vill förstå varför datamodellen ser ut som den gör. Den är
+> ingen färdplan för Community-utgåvan: utgåvan är **fryst i funktioner** per
+> 2026-09-01, och det som står under "Medvetet senare (v2+)" nedan hör till
+> licensversionen — inte hit. Vad utgåvan faktiskt kan står i
+> [README.md](README.md).
+
 > Enskild firma, en användare, kalenderår, Sverige. Byggs med Next.js + Supabase.
 > Referenser analyserade: Fortnox och Visma eEkonomi (Spiris). Regelverk verifierat för inkomstår 2026.
 > Ingen bankkoppling i v1 (förberedd i datamodellen).
