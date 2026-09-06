@@ -55,13 +55,20 @@ export function K2AnnualReport({
         </div>
       </div>
 
+      {/* Varningen satt tidigare i en print:hidden-ruta. Det utskrivna
+          dokumentet — det som faktiskt lämnas till Bolagsverket — visade
+          alltså en obalanserad balansräkning utan ett ord om saken. En
+          årsredovisning som inte balanserar får inte lämnas in tyst. */}
       {!balanced && (
-        <Card className="border-destructive print:hidden">
+        <Card className="border-destructive">
           <CardContent className="py-4 text-sm text-destructive">
             Obs: balansräkningen balanserar inte (tillgångar {fmt(report.balances.assets)} kr,
-            eget kapital &amp; skulder {fmt(report.balances.equityAndLiabilities)} kr).
-            Kontrollera att alla bokslutsposter (avskrivningar, skatt, årets resultat)
-            är bokförda innan dokumentet används.
+            eget kapital &amp; skulder {fmt(report.balances.equityAndLiabilities)} kr —
+            skillnad {fmt(report.balances.assets - report.balances.equityAndLiabilities)} kr).
+            Dokumentet får inte lämnas in i det här skicket. Kontrollera att alla
+            bokslutsposter (avskrivningar, skatt, årets resultat) är bokförda, och
+            att inga poster ligger på konton avsedda för enskild firma (2010–2018) —
+            de hör inte hemma i ett aktiebolag.
           </CardContent>
         </Card>
       )}
@@ -92,7 +99,9 @@ export function K2AnnualReport({
               </tr></thead>
               <tbody>
                 <tr><td>Nettoomsättning</td><td className="text-right tabular-nums">{fmt(Math.round(report.netRevenue / 1000))}</td></tr>
-                <tr><td>Resultat efter finansiella poster</td><td className="text-right tabular-nums">{fmt(Math.round(report.result / 1000))}</td></tr>
+                {/* Raden heter det den heter — tidigare skrevs årets resultat
+                    här, alltså efter bokslutsdispositioner och skatt. */}
+                <tr><td>Resultat efter finansiella poster</td><td className="text-right tabular-nums">{fmt(Math.round(report.resultAfterFin / 1000))}</td></tr>
                 <tr><td>Soliditet (%)</td><td className="text-right tabular-nums">
                   {report.balances.assets > 0 ? Math.round(report.equity.total / report.balances.assets * 100) : 0}
                 </td></tr>
@@ -102,6 +111,11 @@ export function K2AnnualReport({
             <table className="text-sm w-full max-w-md">
               <tbody>
                 <tr><td>Aktiekapital</td><td className="text-right tabular-nums">{fmt(report.equity.shareCapital)}</td></tr>
+                {/* Utan den här raden summerade tabellen inte när något låg på
+                    2082–2090 eller på enskild firmas egetkapitalkonton. */}
+                {report.equity.otherEquity !== 0 && (
+                  <tr><td>Övrigt eget kapital</td><td className="text-right tabular-nums">{fmt(report.equity.otherEquity)}</td></tr>
+                )}
                 <tr><td>Balanserat resultat</td><td className="text-right tabular-nums">{fmt(report.equity.retained)}</td></tr>
                 <tr><td>Årets resultat</td><td className="text-right tabular-nums">{fmt(report.equity.yearResult)}</td></tr>
                 <tr className="font-semibold border-t"><td>Summa eget kapital</td><td className="text-right tabular-nums">{fmt(report.equity.total)}</td></tr>
