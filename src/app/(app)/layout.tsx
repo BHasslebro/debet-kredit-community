@@ -6,6 +6,7 @@ import { LogoutButton } from "@/components/logout-button";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { MobileNav } from "@/components/mobile-nav";
 import { AppBrand } from "@/components/app-brand";
+import { SearchHotkey } from "@/components/search-hotkey";
 import { ReportBug } from "@/components/report-bug-button";
 import { ClientErrorCapture } from "@/components/client-error-capture";
 import { APP_VERSION, BUILD_SHA } from "@/lib/app-version";
@@ -24,6 +25,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const isDemo = process.env.DEMO_MODE === "1";
 
+  // Siffran i menyn läses ur exakt samma källa som sidan själv räknar ur:
+  // /underlag ur attachments utan verifikat. Bara en kö som ska tömmas får en
+  // siffra — en badge på Rapporter hade inte betytt någonting, och då slutar
+  // man se badges överallt. Saknas tabellen blir count null → ingen badge.
+  const { count: inboxCount } = await supabase.from("attachments")
+    .select("id", { count: "exact", head: true })
+    .is("verification_id", null);
+  const navBadges = { underlag: inboxCount ?? 0 };
+
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       {themeCss && <style>{themeCss}</style>}
@@ -41,7 +51,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           efterhand, och en felrapport skrivs alltid efteråt. */}
       <ClientErrorCapture />
       {/* Mobil toppmeny */}
-      <MobileNav companyName={companyName} logoUrl={logoUrl} appVersion={APP_VERSION} buildSha={BUILD_SHA} />
+      <MobileNav companyName={companyName} logoUrl={logoUrl} appVersion={APP_VERSION}
+        buildSha={BUILD_SHA} badges={navBadges} />
       {/* Desktop-sidomeny */}
       <aside className="hidden md:flex w-60 shrink-0 bg-sidebar text-sidebar-foreground flex-col print:hidden">
         <div className="px-4 py-4 border-b border-sidebar-border">
@@ -49,12 +60,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <AppBrand companyName={companyName} logoUrl={logoUrl} subtitle="Bokföring" />
           </Link>
         </div>
-        <NavLinks />
+        <NavLinks badges={navBadges} />
         <div className="mt-auto p-3 border-t border-sidebar-border">
           <ReportBug companyName={companyName} appVersion={APP_VERSION} buildSha={BUILD_SHA} />
           <LogoutButton />
         </div>
       </aside>
+      {/* "Sök" är inte längre en menyrad — genvägen måste därför finnas
+          överallt. Ritar ingenting. */}
+      <SearchHotkey />
       <main className="flex-1 p-4 sm:p-6 max-w-6xl w-full">
         <AutoRefresh />
         {children}

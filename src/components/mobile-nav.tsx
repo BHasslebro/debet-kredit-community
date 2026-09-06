@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
-import { NavLinks } from "@/components/nav-links";
+import { NavLinks, type NavBadges } from "@/components/nav-links";
 import { AppBrand } from "@/components/app-brand";
 import { LogoutButton } from "@/components/logout-button";
 import { ReportBugTrigger } from "@/components/report-bug-button";
@@ -13,12 +13,20 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/s
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
 
-/** Mobil topprad med hamburgermeny — sidomenyn i en Sheet */
-export function MobileNav({ companyName, logoUrl, appVersion, buildSha }: {
+/**
+ * Mobil topprad med hamburgermeny — sidomenyn i en Sheet.
+ *
+ * Lådan visar samma struktur som skrivbordet, samma grupper i samma ordning:
+ * "Varje dag" ligger först, för det är den lådan man öppnar mellan två möten.
+ * Däremot ritas ingen ⌘K-hint här — en telefon har ingen cmd-tangent, och en
+ * genväg man inte kan trycka är brus.
+ */
+export function MobileNav({ companyName, logoUrl, appVersion, buildSha, badges }: {
   companyName: string;
   logoUrl?: string | null;
   appVersion: string;
   buildSha?: string;
+  badges?: NavBadges;
 }) {
   const [open, setOpen] = useState(false);
   // Felrapporten ligger UTANFÖR menypanelen och stänger den när den öppnas:
@@ -45,7 +53,7 @@ export function MobileNav({ companyName, logoUrl, appVersion, buildSha }: {
             {companyName}
           </SheetTitle>
           <div className="flex-1 overflow-y-auto">
-            <NavLinks />
+            <NavLinks badges={badges} />
           </div>
           <div className="p-3 border-t border-sidebar-border">
             <ReportBugTrigger onClick={() => { setOpen(false); setBugOpen(true); }} />

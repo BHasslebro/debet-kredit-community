@@ -24,7 +24,9 @@ export function ReportBugTrigger({ onClick }: { onClick: () => void }) {
   return (
     <button
       type="button"
-      className="flex w-full items-center gap-2.5 px-2.5 py-1.5 text-[13px] rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
+      // nav-foot: 7,26:1 mot sidomenyn. Var text-sidebar-foreground/60 och
+      // mätte 3,11:1 — sidomenyns fot är samma strukturbärare som posterna.
+      className="nav-foot flex w-full items-center gap-2.5 px-2.5 py-1.5 text-[13px] rounded-[0.7rem] transition-colors"
       onClick={onClick}
     >
       <Bug className="h-4 w-4" />

@@ -31,8 +31,9 @@ export function AppBrand({
       </span>
       <span className="font-semibold text-[15px] text-sidebar-accent-foreground">
         {companyName}
+        {/* nav-meta: 6,13:1 mot sidomenyn (var /70 → 3,93:1). */}
         {subtitle && (
-          <span className="block text-[11px] font-normal leading-tight text-sidebar-foreground/70">
+          <span className="nav-meta block text-[11px] font-normal leading-tight">
             {subtitle}
           </span>
         )}
