@@ -116,6 +116,51 @@ describe("Låsen är definitiva i databasen, inte bara i appen", () => {
     expect(fn.body).toMatch(/old\.reason\s*<>\s*'manual'/i);
   });
 
+  /**
+   * Provet ovan såg bara att raderingsvakten fanns. Vakten släpper igenom lås
+   * med reason = 'manual', och det fanns ingenting som hindrade en vanlig
+   * användare från att skriva om reason via PostgREST. Tre anrop räckte:
+   *
+   *   UPDATE period_locks SET reason = 'manual' WHERE month = 2;
+   *   DELETE FROM period_locks WHERE month = 2;
+   *   select book_verification('A', '2026-02-14', …);
+   *
+   * — en ny manuell bokning i en redan inlämnad momsperiod. Provet var grönt
+   * hela tiden, för invarianten det påstod sig skydda fanns aldrig.
+   */
+  it("en momslåst period kan inte tvättas om till ett manuellt lås [BFL 5:1]", () => {
+    const trg = triggersOn("period_locks");
+    expect(
+      trg.some((t) => /before\s+update/i.test(t)),
+      "periodlås saknar UPDATE-vakt: reason går att skriva om till 'manual', "
+        + "och då släpper raderingsvakten igenom en DELETE",
+    ).toBe(true);
+
+    const fn = effectiveFn("period_locks_block_downgrade");
+    // Ett systemlås får inte byta orsak…
+    expect(fn.body).toMatch(/old\.reason\s*<>\s*'manual'/i);
+    expect(fn.body).toMatch(/new\.reason\s+is\s+distinct\s+from\s+old\.reason/i);
+    // …och låset får inte flyttas till en annan period i stället.
+    expect(fn.body).toMatch(/new\.month\s+is\s+distinct\s+from\s+old\.month/i);
+    expect(fn.body).toMatch(/new\.fiscal_year_id\s+is\s+distinct\s+from\s+old\.fiscal_year_id/i);
+  });
+
+  /**
+   * Uppgraderingen åt andra hållet måste finnas kvar: approveVatReport gör
+   * upsert på (fiscal_year_id, month) och skriver reason = 'vat_report' över
+   * en månad användaren redan låst för hand. Skulle vakten stoppa även den
+   * vägen gick momsrapporten inte att godkänna.
+   */
+  it("ett manuellt lås får uppgraderas till ett momslås", () => {
+    const fn = effectiveFn("period_locks_block_downgrade");
+    const guard = /if\s+old\.reason\s*<>\s*'manual'\s+and\s+new\.reason\s+is\s+distinct\s+from\s+old\.reason/i;
+    expect(
+      guard.test(fn.body),
+      "vakten måste villkora på att DET GAMLA låset är ett systemlås — annars "
+        + "blockeras uppgraderingen manual → vat_report och momsrapporten går inte att godkänna",
+    ).toBe(true);
+  });
+
   it("ett avslutat räkenskapsår kan inte öppnas igen [BFL 6:4]", () => {
     const trg = triggersOn("fiscal_years");
     expect(trg.some((t) => /before\s+update/i.test(t)), "räkenskapsår saknar återöppningsvakt").toBe(true);
