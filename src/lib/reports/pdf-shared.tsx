@@ -43,8 +43,27 @@ export const rs = StyleSheet.create({
   },
 });
 
-export const fmtKr = (n: number) =>
-  n.toLocaleString("sv-SE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/**
+ * Belopp i en PDF. Två saker som sv-SE gör, och som PDF-motorn inte klarar:
+ *
+ *  1. Minustecknet blir U+2212 MINUS SIGN, inte bindestreck. @react-pdf kör
+ *     standard-Helvetica (WinAnsi) utan Font.register, och den saknar glyfen —
+ *     tecknet ritas med bredd 0, alltså ingenting alls. Kostnader och skulder
+ *     trycktes som positiva tal i resultat-, balans- och huvudboksrapporten,
+ *     och därmed också i arkiv-zippen som ska bevaras i sju år. Vi byter till
+ *     bindestreck, som finns i WinAnsi. (Tusenavskiljaren U+00A0 finns där och
+ *     renderas rätt — den lämnas i fred.)
+ *  2. Ett belopp som avrundas till noll behåller sitt tecken: -0,004 blir
+ *     "−0,00". Nollrader ska inte se ut som negativa.
+ */
+export function pdfAmount(n: number, decimals: number): string {
+  const rounded = Math.abs(n) < 0.5 / 10 ** decimals ? 0 : n;
+  return rounded
+    .toLocaleString("sv-SE", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+    .replaceAll("−", "-");
+}
+
+export const fmtKr = (n: number) => pdfAmount(n, 2);
 
 export type ReportMeta = {
   companyName: string;

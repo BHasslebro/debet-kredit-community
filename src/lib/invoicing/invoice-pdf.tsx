@@ -1,6 +1,7 @@
 import {
   Document, Page, Text, View, StyleSheet, Image,
 } from "@react-pdf/renderer";
+import { pdfAmount } from "@/lib/reports/pdf-shared";
 
 const s = StyleSheet.create({
   page: { padding: 48, fontSize: 9, fontFamily: "Helvetica", color: "#111" },
@@ -39,8 +40,10 @@ const s = StyleSheet.create({
   },
 });
 
-const fmt = (n: number) =>
-  n.toLocaleString("sv-SE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// Samma formatterare som rapporterna: sv-SE:s U+2212 finns inte i PDF-motorns
+// standard-Helvetica och ritas inte alls, vilket tryckte kreditfakturans
+// belopp som positiva tal. Se pdfAmount.
+const fmt = (n: number) => pdfAmount(n, 2);
 
 export type InvoicePdfData = {
   type: "debit" | "credit";
@@ -80,6 +83,38 @@ export type InvoicePdfData = {
    */
   logoDataUrl?: string | null;
 };
+
+/** Fälten avsändarblocket behöver, som de heter i `settings`-raden. */
+export type CompanySettingsRow = {
+  company_name?: string | null;
+  org_number?: string | null; vat_number?: string | null;
+  address?: string | null; postal_code?: string | null; city?: string | null;
+  email?: string | null; phone?: string | null;
+  bankgiro?: string | null; plusgiro?: string | null;
+  iban?: string | null; bic?: string | null;
+};
+
+/**
+ * `settings`-raden → fakturans avsändarblock.
+ *
+ * Raden heter `company_name`, men `InvoicePdfData["company"]` heter `name`.
+ * Både PDF-routen och e-postutskicket skickade in `settings` rakt av, så
+ * `d.company.name` blev `undefined` och BÅDE fakturahuvudet och den
+ * lagstadgade sidfoten trycktes utan avsändare — på den faktura kunden får.
+ * Typkontrollen såg det aldrig: `select("*")` på en otypad klient ger `any`.
+ *
+ * Omskrivningen ligger här, i en typad funktion med eget prov, i stället för
+ * som ett objektliteral på två anropsplatser som kan glida isär igen.
+ */
+export function companyFromSettings(s: CompanySettingsRow): InvoicePdfData["company"] {
+  return {
+    name: s.company_name ?? "",
+    org_number: s.org_number, vat_number: s.vat_number,
+    address: s.address, postal_code: s.postal_code, city: s.city,
+    email: s.email, phone: s.phone,
+    bankgiro: s.bankgiro, plusgiro: s.plusgiro, iban: s.iban, bic: s.bic,
+  };
+}
 
 export function InvoicePdf({ data }: { data: InvoicePdfData }) {
   const d = data;
@@ -208,6 +243,11 @@ export function InvoicePdf({ data }: { data: InvoicePdfData }) {
               {d.company.bankgiro ? <Text style={s.bold}>Bankgiro: {d.company.bankgiro}</Text> : null}
               {d.company.plusgiro ? <Text>Plusgiro: {d.company.plusgiro}</Text> : null}
               {d.company.iban ? <Text>IBAN: {d.company.iban} {d.company.bic ? `BIC: ${d.company.bic}` : ""}</Text> : null}
+              {/* Utan något betalsätt trycktes rubriken över tom yta och
+                  kunden fick en faktura utan att veta vart pengarna ska. */}
+              {!d.company.bankgiro && !d.company.plusgiro && !d.company.iban ? (
+                <Text style={s.bold}>Betalsätt saknas — fyll i bankgiro under Inställningar</Text>
+              ) : null}
             </View>
             <View style={{ alignItems: "flex-end" }}>
               <Text style={s.label}>OCR</Text>

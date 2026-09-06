@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
 import { createClient } from "@/lib/supabase/server";
 import { calculateTotals, type InvoiceRowInput } from "@/lib/invoicing/totals";
-import { InvoicePdf, type InvoicePdfData } from "@/lib/invoicing/invoice-pdf";
+import { InvoicePdf, companyFromSettings, type InvoicePdfData } from "@/lib/invoicing/invoice-pdf";
 import { logoDataUrl } from "@/lib/branding/logo";
 import React from "react";
 
@@ -70,7 +70,7 @@ export async function GET(
     vat: Number(invoice.vat_amount),
     rounding: Number(invoice.rounding),
     total: Number(invoice.total_amount),
-    company: settings,
+    company: companyFromSettings(settings),
     logoDataUrl: logo,
   };
 

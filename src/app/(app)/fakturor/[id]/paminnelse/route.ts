@@ -3,6 +3,7 @@ import React from "react";
 import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { createClient } from "@/lib/supabase/server";
+import { pdfAmount } from "@/lib/reports/pdf-shared";
 import { todayISO } from "@/lib/dates";
 
 const s = StyleSheet.create({
@@ -14,8 +15,9 @@ const s = StyleSheet.create({
   row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 2 },
 });
 
-const fmt = (n: number) =>
-  n.toLocaleString("sv-SE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// Samma formatterare som övriga PDF:er — se pdfAmount om varför sv-SE:s
+// minustecken inte går att skicka till PDF-motorn.
+const fmt = (n: number) => pdfAmount(n, 2);
 
 export async function GET(
   _req: Request,
