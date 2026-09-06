@@ -1,6 +1,6 @@
 -- Bokföringsregler för banktransaktioner: "självgående bokföring".
 -- En regel matchar på text i transaktionens beskrivning/motpart och anger
--- motkonto + momssats. auto_book=true → bokförs automatiskt vid entydig träff.
+-- motkonto + momssats. Regelträffar bokförs när användaren väljer det.
 create table bank_rules (
   id uuid primary key default gen_random_uuid(),
   name text not null,
