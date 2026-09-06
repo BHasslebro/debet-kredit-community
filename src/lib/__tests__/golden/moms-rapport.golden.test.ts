@@ -25,7 +25,8 @@
  *             utgående, inte årets affärshändelser.
  */
 import { describe, expect, test } from "vitest";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -243,5 +244,75 @@ describe("D. Momsomföring, ingående balans och bokslut hör inte till perioden
     expect(src).toMatch(/\.in\("source", NON_VAT_TRANSFER_SOURCES\)/);
     // Ingen dubblerad literal-lista i actionen
     expect(src).not.toMatch(/\[\s*"vat_report"\s*,\s*"opening_balance"/);
+  });
+});
+
+// ===========================================================================
+// E. Kedjan från momssats till ruta har en ände  [ML 9 kap.]
+// ===========================================================================
+
+/**
+ * Momssatserna 12 % och 6 % fanns överallt UTOM där de behövdes.
+ *
+ * `vat_codes` definierade SALES_12/SALES_6. Momskontona 2621 och 2631 fanns i
+ * seeden. Momsrapporten hade ruta 11 och 12 med rimlighetskontroller. Artikel-
+ * och fakturaformulären erbjöd 25/12/6/0 %. Men INGET intäktskonto bar koden
+ * SALES_12 eller SALES_6 — och /kontoplan är en läsvy, så användaren kunde
+ * varken skapa ett konto eller sätta en momskod.
+ *
+ * Följden: en artikel med 6 % moms måste bokföras på ett 25 %-konto, och
+ * momsdeklarationen svarade med två röda rimlighetskontroller som ingen kunde
+ * rätta. Varje enskild del var rätt; kedjan saknade sin sista länk.
+ *
+ * Provet läser migrationerna, för det är där kontoplanen bor.
+ */
+describe("E. Varje momssats appen erbjuder går att bokföra", () => {
+  const MIG_DIR = fileURLToPath(new URL("../../../../supabase/migrations/", import.meta.url));
+  const migrationSql = readdirSync(MIG_DIR)
+    .filter((f) => f.endsWith(".sql")).sort()
+    .map((f) => readFileSync(path.join(MIG_DIR, f), "utf8"))
+    .join("\n");
+
+  /** Intäktskonton (3000–3799) och deras momskod, som seeden lämnar dem. */
+  const revenueAccounts = [...migrationSql.matchAll(
+    /\(\s*(3[0-7]\d\d)\s*,\s*'[^']*'\s*,\s*(?:'([A-Z_0-9]+)'|null)/g)]
+    .map((m) => ({ number: parseInt(m[1], 10), vatCode: m[2] ?? null }));
+
+  test("E1: seeden känner till intäktskonton alls", () => {
+    expect(revenueAccounts.length).toBeGreaterThan(5);
+  });
+
+  for (const [rate, code] of [[25, "SALES_25"], [12, "SALES_12"], [6, "SALES_6"]] as const) {
+    test(`E2: ${rate} % har minst ett intäktskonto med ${code}`, () => {
+      const hits = revenueAccounts.filter((a) => a.vatCode === code);
+      expect(
+        hits.length,
+        `Ingen rad i kontoplanen bär ${code}. Artikelformuläret erbjuder ${rate} % `
+          + `moms och momsrapporten har en ruta för den, men försäljningen kan inte `
+          + `bokföras på ett konto som hamnar rätt i deklarationen.`,
+      ).toBeGreaterThan(0);
+    });
+  }
+
+  test("E3: momskoderna i kontoplanen finns också i vat_codes", () => {
+    const defined = new Set([...migrationSql.matchAll(/\(\s*'([A-Z_0-9]+)'\s*,\s*'[^']*'\s*,\s*'\{/g)]
+      .map((m) => m[1]));
+    for (const a of revenueAccounts) {
+      if (a.vatCode) {
+        expect(defined.has(a.vatCode), `konto ${a.number} pekar på okänd momskod ${a.vatCode}`)
+          .toBe(true);
+      }
+    }
+  });
+
+  test("E4: momskontot för varje sats finns i kontoplanen", () => {
+    // 2611 (25 %), 2621 (12 %), 2631 (6 %) — utan kontot går momsen inte att
+    // bokföra även om intäktskontot är rätt.
+    for (const account of [2611, 2621, 2631]) {
+      expect(
+        new RegExp(`\\(\\s*${account}\\s*,`).test(migrationSql),
+        `momskonto ${account} saknas i kontoplanen`,
+      ).toBe(true);
+    }
   });
 });

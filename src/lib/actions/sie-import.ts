@@ -30,6 +30,12 @@ export async function importSieFile(formData: FormData) {
   // 1. Skapa okända konton
   const { data: existingAccounts } = await supabase.from("accounts").select("number");
   const known = new Set((existingAccounts ?? []).map((a) => a.number));
+  // Konton som skapas här får ingen vat_code — den går inte att härleda ur en
+  // SIE-fil, och kontoplanen är en läsvy så den går inte att sätta efteråt.
+  // Momsrapportens beskattningsunderlag (ruta 05, 20–24, 35–42) slår på just
+  // vat_code, alltså faller all försäljning på ett nyskapat konto ur
+  // deklarationen — tyst. Vi samlar dem och säger det rakt ut i stället.
+  const createdWithoutVatCode: number[] = [];
   const usedAccounts = new Set<number>([
     ...parsed.openingBalances.map((b) => b.account),
     ...parsed.verifications.flatMap((v) => v.rows.map((r) => r.account)),
@@ -44,6 +50,7 @@ export async function importSieFile(formData: FormData) {
       if (!error) {
         summary.accountsCreated++;
         known.add(acc.number);
+        if (acc.number >= 3000 && acc.number <= 3799) createdWithoutVatCode.push(acc.number);
       }
     }
   }
@@ -55,7 +62,18 @@ export async function importSieFile(formData: FormData) {
       });
       summary.accountsCreated++;
       known.add(number);
+      if (number >= 3000 && number <= 3799) createdWithoutVatCode.push(number);
     }
+  }
+
+  if (createdWithoutVatCode.length) {
+    const list = [...new Set(createdWithoutVatCode)].sort((a, b) => a - b).join(", ");
+    warnings.push(
+      `Intäktskontona ${list} skapades utan momskod och räknas därför INTE med i ` +
+      `momsdeklarationens beskattningsunderlag (ruta 05). Bokför försäljningen på ` +
+      `kontoplanens egna försäljningskonton (3001/3002/3003 varor, 3011/3012/3013 ` +
+      `tjänster) — eller stäm av ruta 05 för hand innan du lämnar in deklarationen.`
+    );
   }
 
   // 2. Ingående balanser
