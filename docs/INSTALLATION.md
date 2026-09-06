@@ -150,9 +150,13 @@ npx supabase db push
 
 ## Steg 4 — Kvittoarkivet
 
-I Supabase-panelen: **Storage → New bucket** → namn: `underlag` →
-lämna **Public bucket** AVSTÄNGD → **Create**. (Bucketen kan redan finnas —
-migrationerna försöker skapa den — då är detta steg klart.)
+Migrationerna i steg 3 skapar två lagringsytor (buckets) åt dig: `underlag`
+för kvitton och fakturor, och `branding` för din logotyp. Öppna
+Supabase-panelen → **Storage** och kontrollera att båda finns och att **Public**
+är AVSTÄNGT på båda.
+
+Saknas någon av dem: **Storage → New bucket** → namn `underlag` respektive
+`branding` → lämna **Public bucket** AVSTÄNGD → **Create**.
 
 ## Steg 5 — Ditt inloggningskonto
 
@@ -202,7 +206,7 @@ versionen.
    | `NEXT_PUBLIC_SUPABASE_URL` | din Project URL från steg 2 |
    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon-nyckeln från steg 2 |
    | `STATS_API_KEY` | *Valfri.* En slumpsträng du hittar på själv (`openssl rand -base64 32`) som ger externa system läsåtkomst till dina nyckeltal via `/api/stats/*`. Hoppa över om du inte bygger egna integrationer |
-   | `SUPABASE_SERVICE_ROLE_KEY` | *Valfri.* Behövs för läs-API:et ovan (tillsammans med `STATS_API_KEY`) och för Byråns åtkomst. Går förbi alla säkerhetsregler — lägg den aldrig någon annanstans än som miljövariabel på servern |
+   | `SUPABASE_SERVICE_ROLE_KEY` | *Valfri.* Behövs för tre saker: läs-API:et ovan (tillsammans med `STATS_API_KEY`), **API-nycklarna** under Inställningar → Åtkomst (och därmed hela `/api/v1/*`) och Byråns åtkomst. Går förbi alla säkerhetsregler — lägg den aldrig någon annanstans än som miljövariabel på servern |
 
 4. **Deploy**. Efter ~1 minut har du en adress i stil med
    `https://debet-kredit-dittnamn.vercel.app`.
@@ -218,9 +222,10 @@ bokför din första händelse.
 - **Tvåstegsverifiering**: ett extra steg vid inloggningen — efter lösenordet en
   sexsiffrig kod från en app i telefonen, samma metod som din bank och ditt
   GitHub-konto. Slås på under Inställningar → Säkerhet, tar ungefär en minut och
-  kräver ingen miljövariabel. Enda förberedelsen: slå på **Multi-Factor
-  Authentication (TOTP)** i Supabase-panelen under Authentication → Sign In /
-  Providers. Hela vägen, och vad du gör om telefonen försvinner, står i
+  kräver ingen miljövariabel. Den vilar på **Multi-Factor Authentication
+  (TOTP)** i Supabase-panelen under Authentication → Sign In / Providers — på
+  nya projekt är den redan påslagen, och du behöver bara gå dit om appen säger
+  att den är av. Hela vägen, och vad du gör om telefonen försvinner, står i
   [Tvåstegsverifiering](TVASTEGSVERIFIERING.md).
 - **Mejla fakturor**: konto på [resend.com](https://resend.com), verifiera din
   domän, lägg `RESEND_API_KEY` som miljövariabel i Vercel. Fakturor och
@@ -276,8 +281,8 @@ inte till 200 tecken base64.
 
 **3. Vad som aldrig får delas eller mejlas.** `SUPABASE_SERVICE_ROLE_KEY` går
 förbi alla säkerhetsspärrar i databasen och ger full läs- och skrivåtkomst till
-hela bokföringen. Använder du den (bara tillsammans med `STATS_API_KEY`, för
-läs-API:et) ska den bo som miljövariabel på servern och ingen annanstans —
+hela bokföringen. Använder du den (till läs-API:et, till API-nycklarna eller
+till Byråns åtkomst) ska den bo som miljövariabel på servern och ingen annanstans —
 aldrig i mejl, chatt, skärmdump eller supportärende. Ingen konsult och ingen
 "medarbetare från Supabase" behöver den; frågar någon efter den är det ett
 bedrägeriförsök. Samma regel: `RESEND_API_KEY`, `STATS_API_KEY`, Enable Bankings

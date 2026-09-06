@@ -158,10 +158,19 @@ Priser och köp: [debea.se/priser](https://debea.se/priser).
 
 Din installation har ett eget API. Det finns inget centralt API att ansöka
 till: din server, dina nycklar. Du skapar en nyckel i appen under
-**Inställningar → Åtkomst → API-nycklar**, med ett klick — ingen miljövariabel,
-ingen terminal, ingen redeploy. Nyckeln visas exakt en gång och går att
-återkalla när som helst; återkallelsen biter i samma sekund, även mitt i ett
-pågående anrop.
+**Inställningar → Åtkomst → API-nycklar**, med ett klick — ingen terminal,
+ingen redeploy per nyckel. Nyckeln visas exakt en gång och går att återkalla
+när som helst; återkallelsen biter i samma sekund, även mitt i ett pågående
+anrop.
+
+> **Slås på en gång:** API:et kräver att `SUPABASE_SERVICE_ROLE_KEY` finns i
+> installationens miljö — samma nyckel som Byråns åtkomst använder, och av
+> samma skäl: varje nyckel får ett eget maskinkonto i `auth.users`, och det
+> kontot går bara att skapa med admin-API:t. Saknas den svarar `/api/v1/*` med
+> `503 server_misconfigured` och knappen i Inställningar säger till. Lägg in
+> den i `.env.local` (lokalt) eller under Vercel → Environment Variables, se
+> [docs/INSTALLATION.md](docs/INSTALLATION.md). Nyckeln går förbi alla
+> säkerhetsregler och får aldrig hamna i webbläsaren eller i ett commit.
 
 En nyckel bär en eller båda av två behörigheter:
 
@@ -258,10 +267,10 @@ npx supabase db push
 ```
 Projekt-ref är strängen i din Supabase-URL: `https://<projekt-ref>.supabase.co`.
 
-**4. Kvittoarkivet:** migrationerna försöker skapa lagringsytan (bucketen)
-`underlag`. Kontrollera under Supabase-panelen → **Storage** att den finns och
-är **privat**. Saknas den: New bucket → namn `underlag`, **Private** (inte
-public).
+**4. Kvittoarkivet:** migrationerna försöker skapa lagringsytorna (bucketarna)
+`underlag` (kvitton och fakturor) och `branding` (din logotyp). Kontrollera
+under Supabase-panelen → **Storage** att båda finns och är **privata**. Saknas
+någon: New bucket → namnet ovan, **Private** (inte public).
 
 **5. Skapa din inloggning:** Supabase-panelen → Authentication → Users →
 Add user → e-post + lösenord (bocka i "Auto confirm"). Appen är

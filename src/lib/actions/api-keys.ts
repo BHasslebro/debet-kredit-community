@@ -13,8 +13,14 @@ import { API_SCOPES, type ApiScope } from "@/lib/api/scopes";
  *
  * Motsvarigheten till `byra-keys.ts`, och medvetet byggd likadant: nyckeln
  * utfärdas HÄR, i installationens eget gränssnitt, av installationens egen
- * ägare. Ingen miljövariabel, ingen terminal, ingen redeploy — det är hela
- * skillnaden mot STATS_API_KEY.
+ * ägare. Ingen terminal, ingen redeploy per nyckel — det är skillnaden mot
+ * STATS_API_KEY, som ÄR miljövariabeln.
+ *
+ * Installationen behöver däremot `SUPABASE_SERVICE_ROLE_KEY` en gång, precis
+ * som Byråns åtkomst: maskinkontot nedan skapas i auth.users, och dit når
+ * bara admin-API:t. Saknas den säger knappen till i klartext i stället för
+ * att låtsas fungera — och README och docs/INSTALLATION.md säger samma sak
+ * innan kunden klickar.
  *
  * Två lager, som överallt annars i produkten:
  *  * RLS avgör. Raderna skrivs med användarens egen klient, så policyn på
