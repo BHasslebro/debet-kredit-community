@@ -84,5 +84,13 @@ export const config = {
   // in i Postman eller en kodgenerator utan att först logga in. Utan raden
   // hade proxyn svarat med en omdirigering till /login, och verktyget hade
   // rapporterat "ogiltig JSON" i stället för att säga varför.
-  matcher: ["/((?!api/|openapi.json|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  //
+  // manifest.webmanifest av exakt samma skäl, och det är inte valfritt:
+  // webbläsaren hämtar manifestet UTAN kakor även när du är inloggad, så bakom
+  // spärren blir svaret en omdirigering till /login och webbläsaren rapporterar
+  // "Manifest: Syntax error". Då går appen inte att lägga till på hemskärmen.
+  // Filen innehåller appens namn, färger och ikoner — ingenting ur bokföringen.
+  matcher: [
+    "/((?!api/|openapi.json|manifest.webmanifest|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };
