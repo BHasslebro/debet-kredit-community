@@ -8,6 +8,12 @@
 >
 > I klartext: motorn hålls i takt med licensens, och varje beräkning bär
 > ett test som citerar sin rättskälla. Nya funktioner kommer inte hit.
+> **Fryst i funktioner betyder inte fryst i filer:** rättelser, säkerhetsfixar
+> och databasändringar som motorn kräver fortsätter komma efter frysdatumet,
+> och det gör även rena förbättringar av det som redan finns. Ser du en
+> migration daterad efter 2026-09-01 är det alltså inte ett brutet löfte —
+> det är motorn som hålls i takt. Löftet gäller *funktionsytan*: nya
+> funktioner kommer inte hit.
 > Nästa års regelvärden (basbelopp, avgiftssatser, momsgränser) hör till
 > licensen — i Community lägger du in dem själv i tabellen `rule_values`
 > med giltighetsdatum, se [CONTRIBUTING.md](CONTRIBUTING.md). Support
@@ -77,9 +83,31 @@ konto och utan installation.
 
 ## Uppgradera till licens — behåll all din bokföring
 
-Uppgraderingen görs på din befintliga installation, mot samma databas:
-verifikat, fakturor, kunder, kvitton och saldon följer med, på ungefär en
-kvart. Steg för steg i licensrepots `docs/UPPGRADERA-FRAN-COMMUNITY.md`.
+Uppgraderingen görs på **din befintliga installation, mot samma databas**. Du
+byter kod, inte databas: verifikat, fakturor, kunder, kvitton, saldon,
+momsperioder och nummerserier står kvar exakt som de var. Ingen export, ingen
+import, ingen migrering av data. Räkna med **cirka 15 minuter**, varav det
+mesta är väntan på en deploy.
+
+Så går det till, utan hemligheter:
+
+1. Du får tillgång till licensrepot och pekar om din Vercel-app dit — samma
+   projekt, samma domän, samma miljövariabler.
+2. Du kör databasändringarna som licensen lägger till. Community-serien och
+   licensserien är två olika serier, så Supabase-CLI:n ber dig först märka de
+   community-versioner den ser som `reverted`
+   (`npx supabase migration repair --status reverted …`) och sedan köra
+   `npx supabase db push --include-all`. Det är hela knuten, och den är
+   beskriven steg för steg i den guide som följer med licensen.
+3. Licensen bär en migrationsvakt som säger till om koden och databasen skulle
+   glida isär, så du får veta det direkt om något steg inte gick igenom — i
+   stället för att en funktion tyst slutar räkna.
+
+**Din bokföring rörs inte i något av stegen.** Det som tillkommer är nya
+tabeller, nya konton och nya spärrar. Vi har mätt det på en riktig
+installation: bokföringen var teckenidentisk efteråt — samma verifikat, samma
+rader, samma saldon.
+
 Priser och köp: [debea.se/priser](https://debea.se/priser).
 
 
@@ -329,6 +357,13 @@ inköp och vilket konto de hör hemma på, avdragsfällorna, EU-inköp med omvä
 skattskyldighet och vad som gäller när du betalat privat.
 
 ## Så här är den tänkt att användas
+
+**Menyn följer arbetets kadens, inte ämnesindelningen.** Uppifrån och ned:
+*Varje dag* (översikt, underlagsinkorg, bank, verifikat och fakturor), *Pengar
+ut*, *Varje månad* (avstämning, moms, skatt), *Bokslut & rapporter* — och sedan
+det du slår upp i stället för gör: *Register*, med kunder, leverantörer,
+artiklar och kontoplan på ett och samma ställe. Inställningarna ligger sist.
+Kommer du från Fortnox känner du igen "Register – Kunder" ordagrant.
 
 Programmet gör förarbetet: momsrutorna räknas ihop, bankraderna matchas mot
 öppna fakturor, bokföringsreglerna pekar ut konto och momssats, avskrivningar

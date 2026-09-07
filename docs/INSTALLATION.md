@@ -237,7 +237,7 @@ bokför din första händelse.
   `ENABLE_BANKING_PRIVATE_KEY`).
 - **Byråns åtkomst**: anlitar du en redovisningsbyrå kan de följa din bokföring
   utifrån utan att du delar ut ditt lösenord eller service-nyckeln. Du skapar
-  nyckeln under Inställningar → Byråns åtkomst, den visas en enda gång, och du
+  nyckeln under Inställningar → Åtkomst → Byråns åtkomst, den visas en enda gång, och du
   kan återkalla den när som helst — byrån tappar åtkomsten i samma sekund, även
   om de är inloggade just då. Kräver `SUPABASE_SERVICE_ROLE_KEY` i miljön.
 
