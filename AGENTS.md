@@ -104,6 +104,8 @@ och Skatteverkets nyheter, Srf konsulterna, FAR, Björn Lundén.
 
 - Läs `PLAN.md` för prioriteringar. Håll ändringar små, en regel eller en
   funktion per pull request.
+- Prompterna till de schemalagda agenterna (Routines) finns i
+  `docs/ROUTINES.md`. Ändra där först, kopiera sedan in i Routinen.
 - Fråga inte ägaren om sådant som går att verifiera i källa eller kod. Fråga
   när beslutet är ägarens (räkenskapsår, lön, revisor, momsperiod), se listan
   i `PLAN.md`.
