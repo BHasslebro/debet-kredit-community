@@ -7,8 +7,6 @@ import { useEffect } from "react";
 import { NavLinks, type NavBadges } from "@/components/nav-links";
 import { AppBrand } from "@/components/app-brand";
 import { LogoutButton } from "@/components/logout-button";
-import { ReportBugTrigger } from "@/components/report-bug-button";
-import { BugReportDialog } from "@/components/bug-report-dialog";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
@@ -21,17 +19,12 @@ import { Menu } from "lucide-react";
  * Däremot ritas ingen ⌘K-hint här — en telefon har ingen cmd-tangent, och en
  * genväg man inte kan trycka är brus.
  */
-export function MobileNav({ companyName, logoUrl, appVersion, buildSha, badges }: {
+export function MobileNav({ companyName, logoUrl, badges }: {
   companyName: string;
   logoUrl?: string | null;
-  appVersion: string;
-  buildSha?: string;
   badges?: NavBadges;
 }) {
   const [open, setOpen] = useState(false);
-  // Felrapporten ligger UTANFÖR menypanelen och stänger den när den öppnas:
-  // en skärmbild ska visa sidan som gick sönder, inte menyn ovanpå den.
-  const [bugOpen, setBugOpen] = useState(false);
   const pathname = usePathname();
 
   // Stäng menyn vid navigering
@@ -56,18 +49,10 @@ export function MobileNav({ companyName, logoUrl, appVersion, buildSha, badges }
             <NavLinks badges={badges} />
           </div>
           <div className="p-3 border-t border-sidebar-border">
-            <ReportBugTrigger onClick={() => { setOpen(false); setBugOpen(true); }} />
             <LogoutButton />
           </div>
         </SheetContent>
       </Sheet>
-      <BugReportDialog
-        open={bugOpen}
-        onOpenChange={setBugOpen}
-        companyName={companyName}
-        appVersion={appVersion}
-        buildSha={buildSha}
-      />
     </header>
   );
 }

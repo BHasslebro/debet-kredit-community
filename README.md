@@ -392,13 +392,8 @@ vid import — är det den licensierade versionen som gäller.
   en claim i en token. Skrivvägen går genom motorns egna funktioner: en rå
   skrivning i huvudboken nekas även av en nyckel som får bokföra
 - Inga hemligheter i koden — nycklar lever i miljövariabler eller i din databas
-- Installationen ringer aldrig hem av sig själv. Det enda som lämnar den är en
-  buggrapport du själv skickar, och den går till `debea.se/api/feedback` utan
-  din inloggning. Två saneringslager körs innan posten byggs: ett för
-  hemligheter, ett till för belopp, id:n, kontonummer och adresser. Vill du
-  läsa koden i stället för texten ligger den i `src/lib/feedback.ts` och
-  `src/lib/logging.ts` — och det är samma funktion som bygger posten som
-  fyller rutan "Visa exakt vad som skickas", så de två kan inte glida isär
+- Installationen ringer aldrig hem. Uppströms buggrapport (som postade till
+  `debea.se`) är borttagen i den här forken
 
 ## Licens
 

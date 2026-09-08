@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { recordClientError } from "@/lib/client-errors";
 
 /**
  * Sista skyddsnätet: fel som uppstår i rotlayouten själv, alltså innan
@@ -9,9 +8,6 @@ import { recordClientError } from "@/lib/client-errors";
  * måste därför rendera egna html- och body-taggar — och klara sig utan
  * appens CSS, som laddas av just den layout som inte kom upp. Därav
  * inline-stilarna: de är inte slarv, de är förutsättningen.
- *
- * Felet läggs i klientfelbufferten så att det följer med om användaren
- * laddar om och skickar en felrapport.
  */
 export default function GlobalError({
   error,
@@ -22,11 +18,6 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error(error);
-    recordClientError({
-      kind: "boundary",
-      message: `Rotlayout — ${error.name}: ${error.message}`,
-      source: error.digest ? `digest ${error.digest}` : "",
-    });
   }, [error]);
 
   return (
@@ -99,9 +90,6 @@ export default function GlobalError({
               Till översikten
             </button>
           </div>
-          <p style={{ fontSize: "0.75rem", color: "#78716c", marginTop: "1.25rem", marginBottom: 0 }}>
-            Händer det igen går det att rapportera från menyn när sidan är uppe.
-          </p>
         </main>
       </body>
     </html>

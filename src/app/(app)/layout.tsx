@@ -7,9 +7,6 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { MobileNav } from "@/components/mobile-nav";
 import { AppBrand } from "@/components/app-brand";
 import { SearchHotkey } from "@/components/search-hotkey";
-import { ReportBug } from "@/components/report-bug-button";
-import { ClientErrorCapture } from "@/components/client-error-capture";
-import { APP_VERSION, BUILD_SHA } from "@/lib/app-version";
 import { buildThemeCss } from "@/lib/theme";
 import { logoSignedUrl } from "@/lib/branding/logo";
 
@@ -47,12 +44,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </a>
         </div>
       )}
-      {/* Felfångarna monteras först: det som redan hänt går inte att fånga i
-          efterhand, och en felrapport skrivs alltid efteråt. */}
-      <ClientErrorCapture />
       {/* Mobil toppmeny */}
-      <MobileNav companyName={companyName} logoUrl={logoUrl} appVersion={APP_VERSION}
-        buildSha={BUILD_SHA} badges={navBadges} />
+      <MobileNav companyName={companyName} logoUrl={logoUrl} badges={navBadges} />
       {/* Desktop-sidomeny */}
       <aside className="hidden md:flex w-60 shrink-0 bg-sidebar text-sidebar-foreground flex-col print:hidden">
         <div className="px-4 py-4 border-b border-sidebar-border">
@@ -62,7 +55,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
         <NavLinks badges={navBadges} />
         <div className="mt-auto p-3 border-t border-sidebar-border">
-          <ReportBug companyName={companyName} appVersion={APP_VERSION} buildSha={BUILD_SHA} />
           <LogoutButton />
         </div>
       </aside>

@@ -44,8 +44,7 @@ kräver rollen admin här. Den här utgåvan har ingen…") och i README. Konsek
 **Logotypen.** Uppladdning → `logo_path` → sidomeny (`app-brand.tsx`) → faktura-PDF
 (`logoDataUrl`). Hela kedjan hänger ihop.
 
-**Felrapporten.** Går till `https://debea.se/api/feedback`, med prov för sanering,
-buffert, kontrakt, namn och skärmbild.
+**Felrapporten.** Borttagen i den här forken — inget lämnar installationen.
 
 **Arbetar-lägen.** Finns genomgående på långköparna (Sparar…, Importerar…, Bokför…,
 Beräknar…, Laddar upp…, Skapar…).
