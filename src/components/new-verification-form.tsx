@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { bookVerification } from "@/lib/actions/verifications";
 import {
   egetUttag, egenInsattning, fSkatt, kopMotKvitto, milersattning, representation,
-  traktamente, type QuickEventResult,
+  traktamente, type QuickEventResult, type CompanyType,
 } from "@/lib/posting/quick-events";
 import { linkAttachment } from "@/lib/actions/inbox";
 import { savePostingTemplate } from "@/lib/actions/templates";
@@ -30,13 +30,16 @@ export function NewVerificationForm({
   rules,
   inboxAttachmentId = null,
   templates = [],
+  companyType,
 }: {
   accounts: Account[];
   seriesCodes: string[];
   rules: Record<string, number>;
   inboxAttachmentId?: string | null;
   templates?: { id: string; name: string; rows: { account: number; side: "debit" | "credit"; share: number }[] }[];
+  companyType?: CompanyType;
 }) {
+  const isAktiebolag = companyType === "aktiebolag";
   const router = useRouter();
   const today = new Date().toISOString().slice(0, 10);
   const [busy, setBusy] = useState(false);
@@ -122,7 +125,7 @@ export function NewVerificationForm({
   }
 
   // --- Snabbhändelser ---
-  const [qeType, setQeType] = useState("uttag");
+  const [qeType, setQeType] = useState(isAktiebolag ? "kvitto" : "uttag");
   const [qeDate, setQeDate] = useState(today);
   const [qeAmount, setQeAmount] = useState("");
   const [qeVat, setQeVat] = useState("25");
@@ -146,11 +149,11 @@ export function NewVerificationForm({
         return amount > 0 ? fSkatt(amount) : null;
       case "kvitto":
         return amount > 0 && qeText.trim()
-          ? kopMotKvitto(amount, parseFloat(qeVat), parseInt(qeAccount), qeText, qePrivate)
+          ? kopMotKvitto(amount, parseFloat(qeVat), parseInt(qeAccount), qeText, qePrivate, companyType)
           : null;
       case "mil": {
         const mil = parseFloat(qeMil) || 0;
-        return mil > 0 ? milersattning(mil, rules["milersattning"] ?? 25) : null;
+        return mil > 0 ? milersattning(mil, rules["milersattning"] ?? 25, companyType) : null;
       }
       case "traktamente": {
         const d = parseInt(qeDays) || 0, h = parseInt(qeHalfDays) || 0, n = parseInt(qeNights) || 0;
@@ -159,7 +162,7 @@ export function NewVerificationForm({
               helt: rules["traktamente_helt"] ?? 300,
               halvt: rules["traktamente_halvt"] ?? 150,
               natt: rules["traktamente_natt"] ?? 150,
-            })
+            }, companyType)
           : null;
       }
       case "representation":
@@ -168,7 +171,8 @@ export function NewVerificationForm({
               amount, parseFloat(qeVat), parseInt(qePersons) || 1,
               rules["representation_moms_underlag"] ?? 300,
               rules["representation_enklare"] ?? 60,
-              qePrivate
+              qePrivate,
+              companyType
             )
           : null;
       default:
@@ -197,18 +201,29 @@ export function NewVerificationForm({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Snabbhändelse</CardTitle>
-            <CardDescription>Vanliga händelser med färdig kontering för enskild firma.</CardDescription>
+            <CardDescription>
+              {isAktiebolag
+                ? "Vanliga händelser med färdig kontering."
+                : "Vanliga händelser med färdig kontering för enskild firma."}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {isAktiebolag && (
+              <p className="text-xs text-muted-foreground">
+                Eget uttag, egen insättning och F-skatt gäller enskild firma och visas inte här.
+                Lön, utdelning och skatteskuld bokförs manuellt (fliken &quot;Manuell kontering&quot;)
+                tills stöd för aktiebolag finns, se PLAN.md fas 1–2.
+              </p>
+            )}
             <div className="grid sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Typ av händelse</Label>
                 <Select value={qeType} onValueChange={setQeType}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="uttag">Eget uttag</SelectItem>
-                    <SelectItem value="insattning">Egen insättning</SelectItem>
-                    <SelectItem value="fskatt">F-skatt (preliminärskatt)</SelectItem>
+                    {!isAktiebolag && <SelectItem value="uttag">Eget uttag</SelectItem>}
+                    {!isAktiebolag && <SelectItem value="insattning">Egen insättning</SelectItem>}
+                    {!isAktiebolag && <SelectItem value="fskatt">F-skatt (preliminärskatt)</SelectItem>}
                     <SelectItem value="kvitto">Köp mot kvitto</SelectItem>
                     <SelectItem value="mil">Milersättning egen bil</SelectItem>
                     <SelectItem value="representation">Representation (måltid)</SelectItem>
@@ -312,7 +327,9 @@ export function NewVerificationForm({
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={qePrivate}
                   onChange={(e) => setQePrivate(e.target.checked)} />
-                Betalt privat (bokförs som egen insättning i stället för företagskontot)
+                {isAktiebolag
+                  ? "Betalt privat (bokförs som skuld till aktieägare, 2893, i stället för företagskontot)"
+                  : "Betalt privat (bokförs som egen insättning i stället för företagskontot)"}
               </label>
             )}
 

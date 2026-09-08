@@ -70,8 +70,15 @@ anställda.
 - Skattekalender per bolagstyp: moms (oförändrad), debiterad preliminärskatt
   (skattekostnad, inte uttag), arbetsgivardeklaration om lön, INK2,
   årsstämma och årsredovisning till Bolagsverket
-- Snabbhändelser för AB: preliminärskatt, aktieägartillskott, utlägg och lån
-  från aktieägare. EF-händelser döljs
+- Snabbhändelser för AB: klart — betalt privat (kvitto, mil, traktamente,
+  representation) bokförs mot 2893 Skulder till aktieägare i stället för
+  2018, och Eget uttag/Egen insättning/F-skatt (EF-konton 2013/2018/2012)
+  döljs i snabbhändelse-vyn när bolagstypen är aktiebolag
+  (`src/lib/posting/quick-events.ts`, `src/components/new-verification-form.tsx`).
+  Kvar: egna snabbhändelser för aktieägartillskott (2093) och lån från
+  aktieägare, samt F-skatt-kontering för AB (väntar på verifierad regel,
+  se docs/REGELVERK.md avsnitt 3 — källorna anger olika konton, 2510 vs
+  2518/1630, olöst)
 - Kontoplan för AB kontrolleras: eget kapital (2081, 2091, 2098, 2099),
   skatteskulder (2510, 2518), 2893, 8910, samt kopplingstabellen till INK2
 - Årsavslut för AB: bokslutsdispositioner (periodiseringsfond 8811/8819 mot

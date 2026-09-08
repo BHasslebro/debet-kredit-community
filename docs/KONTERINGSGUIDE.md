@@ -73,6 +73,10 @@ svensk moms — hela beloppet blir kostnad.
 | Aktiebolag | Kreditera **2893** Skuld till aktieägare (och betala ut senare) |
 | Handelsbolag | Respektive delägares kapitalkonto (2018/2020) |
 
+Snabbhändelserna (köp mot kvitto, milersättning, traktamente, representation)
+väljer kontot automatiskt utifrån bolagstypen i inställningarna när du
+kryssar i "Betalt privat" — du behöver inte tänka på det själv.
+
 Och åt andra hållet — tar du ut pengar: EF → 2013 eget uttag,
 AB → **lön eller utdelning** (aldrig "eget uttag"!), HB → delägarens kapitalkonto.
 

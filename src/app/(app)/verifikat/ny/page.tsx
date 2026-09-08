@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NewVerificationForm } from "@/components/new-verification-form";
+import type { CompanyType } from "@/lib/posting/quick-events";
 
 export default async function NewVerificationPage({
   searchParams,
@@ -10,18 +11,20 @@ export default async function NewVerificationPage({
   const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
 
-  const [{ data: accounts }, { data: series }, { data: rules }, { data: templates }] = await Promise.all([
-    supabase.from("accounts").select("number, name, default_vat_rate, blocked, description")
-      .eq("active", true).order("number"),
-    supabase.from("verification_series")
-      .select("code, name, fiscal_years!inner(year, status)")
-      .eq("manual_entry", true)
-      .eq("fiscal_years.status", "open"),
-    supabase.from("rule_values").select("key, value")
-      .lte("valid_from", today)
-      .or(`valid_to.gte.${today},valid_to.is.null`),
-    supabase.from("posting_templates").select("id, name, rows").order("name"),
-  ]);
+  const [{ data: accounts }, { data: series }, { data: rules }, { data: templates }, { data: settings }] =
+    await Promise.all([
+      supabase.from("accounts").select("number, name, default_vat_rate, blocked, description")
+        .eq("active", true).order("number"),
+      supabase.from("verification_series")
+        .select("code, name, fiscal_years!inner(year, status)")
+        .eq("manual_entry", true)
+        .eq("fiscal_years.status", "open"),
+      supabase.from("rule_values").select("key, value")
+        .lte("valid_from", today)
+        .or(`valid_to.gte.${today},valid_to.is.null`),
+      supabase.from("posting_templates").select("id, name, rows").order("name"),
+      supabase.from("settings").select("company_type").eq("id", 1).single(),
+    ]);
 
   const ruleMap = Object.fromEntries((rules ?? []).map((r) => [r.key, Number(r.value)]));
 
@@ -42,6 +45,7 @@ export default async function NewVerificationPage({
           id: t.id, name: t.name,
           rows: t.rows as { account: number; side: "debit" | "credit"; share: number }[],
         }))}
+        companyType={(settings as { company_type?: CompanyType } | null)?.company_type}
       />
     </div>
   );

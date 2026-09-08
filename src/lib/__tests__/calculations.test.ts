@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { kronorToOre, vatFromGross, vatOnNet, roundToKrona } from "../money";
 import { generateOcr, validateOcr } from "../ocr";
 import { calculateTotals, invoicePostingRows } from "../invoicing/totals";
-import { representation, fSkatt, kopMotKvitto, milersattning } from "../posting/quick-events";
+import { representation, fSkatt, kopMotKvitto, milersattning, traktamente } from "../posting/quick-events";
 import { computeVatBoxes, vatClosingRows, generateEskd, vatPeriods } from "../vat/report";
 import { calculateEfTax } from "../tax/calc";
 import { generateSie4 } from "../sie/export";
@@ -111,6 +111,48 @@ describe("snabbhändelser", () => {
     const r = representation(100, 12, 2, 300, 60); // fika 2 pers, 50 kr/pers netto ≈ 44.64
     expect(r.rows.some((x) => x.account === 6071)).toBe(true);
     expect(r.rows.some((x) => x.account === 6072)).toBe(false);
+  });
+
+  describe("betalt privat — konto beror på bolagstyp (docs/KONTERINGSGUIDE.md)", () => {
+    it("enskild firma (eller ingen bolagstyp angiven) → 2018 Egna insättningar", () => {
+      expect(
+        kopMotKvitto(500, 25, 6110, "Kontorsmaterial", true).rows.find((x) => x.account === 2018)?.credit
+      ).toBe(500);
+      expect(
+        kopMotKvitto(500, 25, 6110, "Kontorsmaterial", true, "enskild_firma").rows
+          .find((x) => x.account === 2018)?.credit
+      ).toBe(500);
+      expect(milersattning(20, 25).rows.find((x) => x.account === 2018)?.credit).toBe(500);
+      expect(
+        traktamente(1, 0, 0, { helt: 300, halvt: 150, natt: 150 }).rows
+          .find((x) => x.account === 2018)?.credit
+      ).toBe(300);
+      expect(
+        representation(1500, 25, 2, 300, 60, true).rows.find((x) => x.account === 2018)?.credit
+      ).toBe(1500);
+    });
+    it("aktiebolag → 2893 Skulder till aktieägare, aldrig 2018", () => {
+      const kvitto = kopMotKvitto(500, 25, 6110, "Kontorsmaterial", true, "aktiebolag");
+      expect(kvitto.rows.find((x) => x.account === 2893)?.credit).toBe(500);
+      expect(kvitto.rows.some((x) => x.account === 2018)).toBe(false);
+
+      const mil = milersattning(20, 25, "aktiebolag");
+      expect(mil.rows.find((x) => x.account === 2893)?.credit).toBe(500);
+      expect(mil.rows.some((x) => x.account === 2018)).toBe(false);
+
+      const trakt = traktamente(1, 0, 0, { helt: 300, halvt: 150, natt: 150 }, "aktiebolag");
+      expect(trakt.rows.find((x) => x.account === 2893)?.credit).toBe(300);
+      expect(trakt.rows.some((x) => x.account === 2018)).toBe(false);
+
+      const rep = representation(1500, 25, 2, 300, 60, true, "aktiebolag");
+      expect(rep.rows.find((x) => x.account === 2893)?.credit).toBe(1500);
+      expect(rep.rows.some((x) => x.account === 2018)).toBe(false);
+    });
+    it("kvitto betalt via företagskontot (paidPrivately=false) bokförs mot 1930 oavsett bolagstyp", () => {
+      const kvitto = kopMotKvitto(500, 25, 6110, "Kontorsmaterial", false, "aktiebolag");
+      expect(kvitto.rows.find((x) => x.account === 1930)?.credit).toBe(500);
+      expect(kvitto.rows.some((x) => x.account === 2018 || x.account === 2893)).toBe(false);
+    });
   });
 });
 
