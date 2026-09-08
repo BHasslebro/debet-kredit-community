@@ -15,9 +15,16 @@ Befintliga Routines som inte har sin prompt här ännu:
 
 ## Förbättringsagenten — veckovis
 
-Rekommenderat schema: söndag 07:00 svensk tid (`CRON_TZ=Europe/Stockholm 0 7 * * 0`),
+Schema: söndag 07:00 svensk tid (`CRON_TZ=Europe/Stockholm 0 7 * * 0`),
 dagen efter Bokföringsagenten, så att veckans regelfynd redan ligger i
 registret när förbättringen väljs. Ny session per körning.
+
+Routinen skapades 2026-09-08 (`trig_01L6GuixTGF4113BD1C783Yk`). Dess egen
+prompt är bara en startinstruktion: hämta main, läs det här avsnittet med
+`git show origin/main:docs/ROUTINES.md` och följ blocket under "Prompt".
+Ändringar i blocket nedan gäller därför från nästa körning så snart de är
+mergade till main. Behåll rubrikerna "## Förbättringsagenten — veckovis" och
+"### Prompt" oförändrade, startinstruktionen letar efter dem.
 
 ### Prompt
 
