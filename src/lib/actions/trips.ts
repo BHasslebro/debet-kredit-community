@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
-import { milersattning, type CompanyType } from "@/lib/posting/quick-events";
+import { todayISO } from "@/lib/dates";
+import { milersattning, ownerPayableAccount } from "@/lib/posting/quick-events";
 
 const tripSchema = z.object({
   trip_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -31,10 +32,10 @@ export async function deleteTrip(id: string) {
   return { ok: true };
 }
 
-/** Bokför milersättning för alla obokade resor: D 5800 / K privatUtlaggKonto (skattefri, 25 kr/mil) */
+/** Bokför milersättning för alla obokade resor: D 5800 / K ownerPayableAccount (skattefri, 25 kr/mil) */
 export async function bookMileage() {
   const supabase = await createClient();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
 
   const [{ data: trips }, { data: rule }, { data: settings }] = await Promise.all([
     supabase.from("trips").select("*").is("verification_id", null).order("trip_date"),
@@ -48,8 +49,9 @@ export async function bookMileage() {
   const rate = Number(rule?.value ?? 25);
   const totalKm = trips.reduce((s, t) => s + Number(t.km), 0);
   const mil = totalKm / 10;
-  const companyType = (settings as { company_type?: CompanyType } | null)?.company_type;
-  const built = milersattning(mil, rate, companyType);
+  // Samma kontering som snabbhändelsen, så motkontot följer bolagsformen här också.
+  const owner = ownerPayableAccount(settings?.company_type ?? "enskild_firma");
+  const built = milersattning(mil, rate, owner);
   const amount = built.rows.find((r) => r.account === 5800)?.debit ?? 0;
 
   const { data: ver, error } = await supabase.rpc("book_verification", {

@@ -83,6 +83,27 @@
   --sidebar-accent-foreground: oklch(0.28 0.03 45);
   --sidebar-border: oklch(0.885 0.02 75);
   --sidebar-ring: oklch(0.62 0.19 40);
+  /* Menyns egna toner. Sidomenyn var ytans svagaste element: dess
+     strukturbärare — grupprubriker, inaktiva ikoner, Logga ut — låg alla under
+     WCAG-gränsen. Varje ton nedan är uppmätt oklch → sRGB → WCAG mot
+     sidomenyns faktiska rgb(244, 236, 222). Kravet är 4,5:1 för text och 3,0:1
+     för grafik. Justera inte utan att mäta om.
+
+     Rubriken hålls medvetet tystare än posterna (5,17 mot 8,62): posterna är
+     målen, rubrikerna är etiketterna. Hierarkin bärs av storlek, spärrning och
+     ton samtidigt — inte av enbart färg. */
+  --nav-item: oklch(0.38 0.02 50);        /* post, inaktiv   8,62:1 (var 4,47) */
+  --nav-heading: oklch(0.5 0.03 55);      /* grupprubrik     5,17:1 (var 2,24) */
+  --nav-icon: oklch(0.52 0.03 55);        /* ikon, inaktiv   4,72:1 (var 2,47) */
+  --nav-meta: oklch(0.46 0.02 55);        /* underrubrik/badge 6,13:1 (var 3,93) */
+  --nav-foot: oklch(0.42 0.02 50);        /* Logga ut        7,26:1 (var 3,11) */
+  /* Aktiv rad: husets eget kortspråk — ett vitt kort på det gräddvita, med
+     kortskuggan. Den gamla plattan mätte 1,16:1 mot menyn, alltså osynlig. */
+  --nav-active-bg: oklch(1 0 0);
+  --nav-active-fg: oklch(0.26 0.03 45);   /* 15,73:1 mot det vita kortet */
+  --nav-hover: oklch(0.965 0.015 76);
+  --nav-rail: oklch(0.8 0.04 72);
+  --nav-badge-bg: oklch(0.885 0.03 72);   /* siffran på plattan: 5,07:1 */
 }
 
 .dark {
@@ -111,12 +132,28 @@
   --chart-5: oklch(0.269 0 0);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
+  /* Var shadcns blålila oklch(0.488 0.243 264.376) — 2,62:1 mot den mörka
+     sidomenyn, alltså under 3:1 även som rent grafiskt element, och dessutom
+     en främmande färg i ett hus som är korall. Uppljusad korall ger 5,83:1. */
+  --sidebar-primary: oklch(0.68 0.16 42);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  /* Samma roller som i ljust läge, mätta mot den mörka sidomenyn
+     oklch(0.205 0 0). Aktiv rad kan inte vara ett vitt kort här — den lyfts i
+     stället en våning, vilket är samma gest i mörkt. */
+  --nav-item: oklch(0.92 0 0);            /* post, inaktiv   14,10:1 */
+  --nav-heading: oklch(0.72 0 0);         /* grupprubrik      7,19:1 */
+  --nav-icon: oklch(0.7 0 0);             /* ikon, inaktiv    6,69:1 */
+  --nav-meta: oklch(0.72 0 0);            /* underrubrik/badge 7,19:1 */
+  --nav-foot: oklch(0.82 0 0);            /* Logga ut        10,28:1 */
+  --nav-active-bg: oklch(0.29 0 0);
+  --nav-active-fg: oklch(0.985 0 0);
+  --nav-hover: oklch(0.25 0 0);
+  --nav-rail: oklch(0.36 0 0);
+  --nav-badge-bg: oklch(0.32 0 0);
 }
 
 @layer base {
@@ -147,4 +184,111 @@
     scrollbar-width: thin;
     scrollbar-color: oklch(0.85 0.02 70) transparent;
   }
+}
+
+/* ── Vänstermenyn ────────────────────────────────────────────────────────────
+   Färgerna kommer ur --nav-*-tokens ovan så att ljust och mörkt läge byts på
+   ett ställe. Formen står här i stället för som utility-klasser därför att
+   både rail:en, gruppens skiljelinje och den aktiva stapeln är pseudoelement —
+   i klasslistan hade de blivit tolv arbiträra värden per rad. */
+.nav-group + .nav-group {
+  margin-top: 10px;
+}
+
+/* Rubricerade grupper får en rail som binder ihop raderna till ett block.
+   Samma varma ton för alla grupper, med flit: en färg per grupp hade
+   konkurrerat med korallen, som är menyns enda färg med ett budskap. */
+.nav-group--rail {
+  padding-left: 9px;
+}
+.nav-group--rail::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 22px;
+  bottom: 2px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--nav-rail);
+}
+.nav-group--rail .nav-heading {
+  padding-left: 1px;
+}
+
+/* Blocket utan rubrik längst ned har ingen rail att bäras av — det får en
+   linje. */
+.nav-group--rule {
+  padding-top: 10px;
+}
+.nav-group--rule::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 0;
+  height: 1px;
+  background: var(--sidebar-border);
+}
+
+.nav-heading {
+  color: var(--nav-heading);
+}
+
+.nav-item {
+  color: var(--nav-item);
+}
+.nav-item .nav-icon {
+  color: var(--nav-icon);
+}
+.nav-item:hover {
+  background: var(--nav-hover);
+  color: var(--nav-active-fg);
+}
+
+/* Aktiv rad: vitt kort med husets kortskugga, en 3 px korallstapel,
+   korallfärgad ikon och halvfet text. Stapeln bär beviset, så plattan slipper
+   skrika. Korallen används till detta och ingenting annat i menyn.
+
+   Stapeln mäter 3,38:1 mot sidomenyn här, mot 4,13:1 i licensutgåvan: den
+   utgåvan har sänkt --primary till oklch(0.57 0.19 40), community ligger kvar
+   på 0.62. Kravet på ett grafiskt element är 3,0:1, så stapeln klarar sig —
+   men korallen är ljusare än den borde vara i hela det här repot, inte bara
+   här, och det är en egen ändring att ta. */
+.nav-item[aria-current="page"] {
+  background: var(--nav-active-bg);
+  color: var(--nav-active-fg);
+  font-weight: 600;
+  box-shadow: 0 1px 3px oklch(0.4 0.04 60 / 0.1);
+}
+.nav-item[aria-current="page"] .nav-icon {
+  color: var(--sidebar-primary);
+}
+.nav-item[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--sidebar-primary);
+}
+
+/* Siffran på en kö som ska tömmas. Neutral ton: den räknar, den varnar inte. */
+.nav-badge {
+  background: var(--nav-badge-bg);
+  color: var(--nav-meta);
+}
+
+/* Logga ut, felrapportknappen och varumärkets underrubrik hör till menyns
+   strukturbärare och följer samma mätning som posterna. */
+.nav-foot {
+  color: var(--nav-foot);
+}
+.nav-foot:hover {
+  background: var(--nav-hover);
+  color: var(--nav-active-fg);
+}
+.nav-meta {
+  color: var(--nav-meta);
 }

@@ -1,12 +1,24 @@
 # Debet & Kredit — Community Edition
 
-> **Det här är den fria Community-versionen** (AGPL-3.0), fryst per
-> 2026-09-01. Den fungerar komplett som den är — men koden står stilla.
-> Fryst betyder allt som det låter: inga nya funktioner, inga rättelser, inga
-> säkerhetsuppdateringar, ingen support, och **inte nästa års regelvärden**
-> (basbelopp, avgiftssatser och momsregler ändras varje årsskifte — den som
-> bokför på gamla värden bokför fel). Du får koden som den är, med full rätt
-> att ändra den själv; underhållet är ditt.
+> **Det här är den fria Community-versionen** (AGPL-3.0), **fryst i
+> funktioner** per 2026-09-01. Den delar bokföringsmotor med licensen —
+> samma beräkningar, underhållna med samma automatiska tester mot lagtext
+> och Skatteverkets specifikationer. Vidareutvecklingen — autopiloten och
+> de nya funktionerna — lever i licensen.
+>
+> I klartext: motorn hålls i takt med licensens, och varje beräkning bär
+> ett test som citerar sin rättskälla. Nya funktioner kommer inte hit.
+> **Fryst i funktioner betyder inte fryst i filer:** rättelser, säkerhetsfixar
+> och databasändringar som motorn kräver fortsätter komma efter frysdatumet,
+> och det gör även rena förbättringar av det som redan finns. Ser du en
+> migration daterad efter 2026-09-01 är det alltså inte ett brutet löfte —
+> det är motorn som hålls i takt. Löftet gäller *funktionsytan*: nya
+> funktioner kommer inte hit.
+> Nästa års regelvärden (basbelopp, avgiftssatser, momsgränser) hör till
+> licensen — i Community lägger du in dem själv i tabellen `rule_values`
+> med giltighetsdatum, se [CONTRIBUTING.md](CONTRIBUTING.md). Support
+> ingår inte, och driften är din: du får koden som den är, med full rätt
+> att ändra den själv.
 >
 > Vill du ha autopiloten — AI-bokföraren som läser kvittot och konterar,
 > rådgivaren, bankregler som bokför av sig själva, lön med AGI, offert- och
@@ -71,9 +83,31 @@ konto och utan installation.
 
 ## Uppgradera till licens — behåll all din bokföring
 
-Uppgraderingen görs på din befintliga installation, mot samma databas:
-verifikat, fakturor, kunder, kvitton och saldon följer med, på ungefär en
-kvart. Steg för steg i licensrepots `docs/UPPGRADERA-FRAN-COMMUNITY.md`.
+Uppgraderingen görs på **din befintliga installation, mot samma databas**. Du
+byter kod, inte databas: verifikat, fakturor, kunder, kvitton, saldon,
+momsperioder och nummerserier står kvar exakt som de var. Ingen export, ingen
+import, ingen migrering av data. Räkna med **cirka 15 minuter**, varav det
+mesta är väntan på en deploy.
+
+Så går det till, utan hemligheter:
+
+1. Du får tillgång till licensrepot och pekar om din Vercel-app dit — samma
+   projekt, samma domän, samma miljövariabler.
+2. Du kör databasändringarna som licensen lägger till. Community-serien och
+   licensserien är två olika serier, så Supabase-CLI:n ber dig först märka de
+   community-versioner den ser som `reverted`
+   (`npx supabase migration repair --status reverted …`) och sedan köra
+   `npx supabase db push --include-all`. Det är hela knuten, och den är
+   beskriven steg för steg i den guide som följer med licensen.
+3. Licensen bär en migrationsvakt som säger till om koden och databasen skulle
+   glida isär, så du får veta det direkt om något steg inte gick igenom — i
+   stället för att en funktion tyst slutar räkna.
+
+**Din bokföring rörs inte i något av stegen.** Det som tillkommer är nya
+tabeller, nya konton och nya spärrar. Vi har mätt det på en riktig
+installation: bokföringen var teckenidentisk efteråt — samma verifikat, samma
+rader, samma saldon.
+
 Priser och köp: [debea.se/priser](https://debea.se/priser).
 
 
@@ -109,10 +143,103 @@ Priser och köp: [debea.se/priser](https://debea.se/priser).
   periodiseringsfond, med deadlines i Att göra-listan
 - **Körjournal, anläggningsregister** med avskrivningar
 - **Översikt med egna nyckeltal** — välj vilka widgets du vill se, teman och
-  färgsättning, samt ett läs-API (`/api/stats`) för egna integrationer
+  färgsättning
+- **Eget API** — din installation exponerar sitt eget API, och nyckeln skapar
+  du i appen under Inställningar → Åtkomst. Se [API:et](#apiet) nedan
+- **Analys** — diagram över det som redan är bokfört, ett räkenskapsår i taget
+  och alltid exklusive moms: omsättning och resultat månad för månad med
+  föregående år nedtonat bakom, kostnaderna fördelade på BAS-kontoklass 4–7,
+  bruttomarginal per månad, de tio största motparterna på kostnadssidan,
+  kundkoncentrationen som Pareto (rubriken säger hur många kunder som står för
+  80 % av omsättningen) och kundfordringarna efter ålder. Under diagrammen
+  ligger tabellerna: kostnader per leverantör och månad, försäljning per kund
+  och per intäktskonto, samt de verifikat som saknar underlag. Sidan läser bara
+  bokföringen — den räknar aldrig fram något du inte redan bokfört, och en
+  månad utan försäljning lämnas tom i marginalen i stället för att ritas som
+  noll
 - **Mobilapp (PWA)** — installera på hemskärmen och fota kvitton rakt in i
   underlagsinkorgen
 - **Arkivexport** — hela räkenskapsåret som zip (SIE + alla underlag)
+- **Tvåstegsverifiering** — valfritt extra steg vid inloggningen: efter
+  lösenordet en sexsiffrig kod från en app i telefonen, samma metod som din bank
+  och ditt GitHub-konto. Slås på under Inställningar → Säkerhet. Kravet hålls av
+  spärren framför appen, inte av gränssnittet — en inloggning som stannat vid
+  lösenordet når ingen sida alls. Finns i både community och licens; säkerhet
+  säljs inte separat. Se
+  [Tvåstegsverifiering](docs/TVASTEGSVERIFIERING.md)
+- **Rapportera en bugg** — knappen längst ned i menyn skickar en rapport till
+  utvecklarna med ett klick: din beskrivning, programversion, webbläsare,
+  vilken sida du var på, de senaste felmeddelandena från din webbläsare och
+  (om du vill) en skärmbild. Skärmbilden visas alltid för dig först, med
+  sifferkolumnerna suddade, och går att ta bort. Under "Visa exakt vad som
+  skickas" står varje rad utskriven med sitt verkliga värde innan du trycker
+  skicka. Belopp, personnummer, id:n och e-postadresser maskas automatiskt —
+  även i din egen text
+- **Byråns åtkomst** — anlitar du en redovisningsbyrå kan de följa läget
+  utifrån med en egen nyckel som du skapar och när som helst återkallar. Den
+  visar sju siffror (obokfört, saknade underlag, senaste verifikatet, låst till
+  och med, nästa momsdeadline, räkenskapsåret) och ingenting mer: inga belopp,
+  inga motparter, inga underlag, och den kan inte bokföra. Byrån kan inte ge
+  sig själv åtkomst, och en återkallelse biter i samma sekund
+
+## API:et
+
+Din installation har ett eget API. Det finns inget centralt API att ansöka
+till: din server, dina nycklar. Du skapar en nyckel i appen under
+**Inställningar → Åtkomst → API-nycklar**, med ett klick — ingen terminal,
+ingen redeploy per nyckel. Nyckeln visas exakt en gång och går att återkalla
+när som helst; återkallelsen biter i samma sekund, även mitt i ett pågående
+anrop.
+
+> **Slås på en gång:** API:et kräver att `SUPABASE_SERVICE_ROLE_KEY` finns i
+> installationens miljö — samma nyckel som Byråns åtkomst använder, och av
+> samma skäl: varje nyckel får ett eget maskinkonto i `auth.users`, och det
+> kontot går bara att skapa med admin-API:t. Saknas den svarar `/api/v1/*` med
+> `503 server_misconfigured` och knappen i Inställningar säger till. Lägg in
+> den i `.env.local` (lokalt) eller under Vercel → Environment Variables, se
+> [docs/INSTALLATION.md](docs/INSTALLATION.md). Nyckeln går förbi alla
+> säkerhetsregler och får aldrig hamna i webbläsaren eller i ett commit.
+
+En nyckel bär en eller båda av två behörigheter:
+
+| Behörighet | Vad den kan |
+|---|---|
+| `data:read` | Hämta verifikat, fakturor, kunder och nyckeltal. Ändrar ingenting. |
+| `ledger:write` | Skapa och bokföra kundfakturor. |
+
+Ingen nyckel når dina företagsuppgifter, dina underlag, banken eller dina
+sparade nycklar — det upprätthålls av databasen, inte av gränssnittet. Och en
+nyckel som får bokföra går genom exakt samma spärrar som du själv: periodlås,
+avslutade räkenskapsår, balanskravet och de obrutna verifikationsserierna.
+
+Endpoints i den här utgåvan:
+
+| | |
+|---|---|
+| `GET /api/v1/meta` | Vad installationen är och vad din nyckel får göra |
+| `GET /api/v1/verifikat` | Affärshändelser med sina rader, markörsidindelat |
+| `POST /api/v1/kundfakturor` | Skapa ett fakturautkast, och bokför det om du vill |
+| `GET /api/stats/overview` | Komplett ekonomisk lägesbild |
+| `GET /api/stats/monthly` | Resultatserie per månad |
+| `GET /api/stats/daily` | Daglig intäktsstatistik |
+
+Kom igång med ett anrop:
+
+```bash
+curl https://din-installation.se/api/v1/meta \
+  -H "Authorization: Bearer dk_live_..."
+```
+
+Den fullständiga OpenAPI 3.1-specen ligger i repot som
+[`public/openapi.json`](public/openapi.json) och serveras av din egen
+installation på `/openapi.json` — läs in den i Postman, Insomnia eller en
+kodgenerator. Utförliga guider, kodexempel och recept finns i
+dokumentationen på [debea.se/api-docs](https://debea.se/api-docs).
+
+Har du redan en integration mot `/api/stats` med `STATS_API_KEY` fortsätter
+den fungera oförändrad. Det nya är att samma rutter också tar emot en
+`dk_live_`-nyckel — med identitet, behörighet, taktgräns och en
+återkallningsknapp.
 
 ### Finns inte här — det är licensversionen
 
@@ -120,6 +247,11 @@ AI-bokföraren som läser kvittot och konterar, AI-rådgivaren, förslagskön,
 bankregler som bokför av sig själva vid import, lön med AGI-fil, samt
 säljdelen (pipeline, offert och order). Community-versionen räknar fram och
 föreslår; den agerar aldrig på egen hand.
+
+API:et finns i båda utgåvorna, men speglar det utgåvan har: licensversionen
+har dessutom endpoints för orderintag från e-handel (`/api/inbound/order`) och
+e-faktura in via Peppol (`/api/inbound/peppol`). De saknas här därför att
+funktionerna gör det — inte som en nedskalning av API:et.
 
 ## Det här behöver du
 
@@ -163,10 +295,10 @@ npx supabase db push
 ```
 Projekt-ref är strängen i din Supabase-URL: `https://<projekt-ref>.supabase.co`.
 
-**4. Kvittoarkivet:** migrationerna försöker skapa lagringsytan (bucketen)
-`underlag`. Kontrollera under Supabase-panelen → **Storage** att den finns och
-är **privat**. Saknas den: New bucket → namn `underlag`, **Private** (inte
-public).
+**4. Kvittoarkivet:** migrationerna försöker skapa lagringsytorna (bucketarna)
+`underlag` (kvitton och fakturor) och `branding` (din logotyp). Kontrollera
+under Supabase-panelen → **Storage** att båda finns och är **privata**. Saknas
+någon: New bucket → namnet ovan, **Private** (inte public).
 
 **5. Skapa din inloggning:** Supabase-panelen → Authentication → Users →
 Add user → e-post + lösenord (bocka i "Auto confirm"). Appen är
@@ -226,6 +358,13 @@ skattskyldighet och vad som gäller när du betalat privat.
 
 ## Så här är den tänkt att användas
 
+**Menyn följer arbetets kadens, inte ämnesindelningen.** Uppifrån och ned:
+*Varje dag* (översikt, underlagsinkorg, bank, verifikat och fakturor), *Pengar
+ut*, *Varje månad* (avstämning, moms, skatt), *Bokslut & rapporter* — och sedan
+det du slår upp i stället för gör: *Register*, med kunder, leverantörer,
+artiklar och kontoplan på ett och samma ställe. Inställningarna ligger sist.
+Kommer du från Fortnox känner du igen "Register – Kunder" ordagrant.
+
 Programmet gör förarbetet: momsrutorna räknas ihop, bankraderna matchas mot
 öppna fakturor, bokföringsreglerna pekar ut konto och momssats, avskrivningar
 och skatt beräknas, årsavslutet fylls i. Sedan tar du beslutet — inget
@@ -242,9 +381,24 @@ vid import — är det den licensierade versionen som gäller.
 - All åtkomst kräver inloggning (Supabase Auth); RLS på samtliga tabeller.
   Självregistrering ska vara avstängd i Supabase — anon-nyckeln är publik och
   appen är single-tenant, så varje konto som kan skapas ser hela bokföringen
+- Tvåstegsverifiering (TOTP) per konto, valfri, via Supabase Auths `aal1`/`aal2`.
+  Kravet upprätthålls i proxyn framför appen — en session som stannat på `aal1`
+  når ingen sida, oavsett vilken adress som skrivs in — och nycklarna ligger i
+  din egen databas. Se [docs/TVASTEGSVERIFIERING.md](docs/TVASTEGSVERIFIERING.md)
 - Verifikat är oföränderliga — bokning och rättelse sker via databas­funktioner
   som upprätthåller balans och nummerserier atomiskt
+- API-nycklar och byrånycklar är egna maskinkonton med scope, taktgräns och
+  återkallning. Behörigheten härleds ur nyckelraden vid varje fråga, aldrig ur
+  en claim i en token. Skrivvägen går genom motorns egna funktioner: en rå
+  skrivning i huvudboken nekas även av en nyckel som får bokföra
 - Inga hemligheter i koden — nycklar lever i miljövariabler eller i din databas
+- Installationen ringer aldrig hem av sig själv. Det enda som lämnar den är en
+  buggrapport du själv skickar, och den går till `debea.se/api/feedback` utan
+  din inloggning. Två saneringslager körs innan posten byggs: ett för
+  hemligheter, ett till för belopp, id:n, kontonummer och adresser. Vill du
+  läsa koden i stället för texten ligger den i `src/lib/feedback.ts` och
+  `src/lib/logging.ts` — och det är samma funktion som bygger posten som
+  fyller rutan "Visa exakt vad som skickas", så de två kan inte glida isär
 
 ## Licens
 
@@ -260,7 +414,9 @@ driva en stängd kommersiell produkt erbjuds en **kommersiell licens** — öppn
 ett ärende i repot eller kontakta upphovsrättsinnehavaren, så kommer vi överens
 om villkoren.
 
-**Bidrag:** det här repot är fryst och tar inte emot pull requests —
-utvecklingen fortsätter i den licensierade versionen. Villkoren för bidrag
-står kvar i [CONTRIBUTING.md](CONTRIBUTING.md) för den som forkar och driver
-vidare på egen hand, vilket AGPL uttryckligen tillåter.
+**Bidrag:** funktionsutvecklingen sker i den licensierade versionen, och det
+här repot tar inte emot pull requests. Motorn hålls i stället i takt med
+licensens, med sina tester. Har du en fråga eller en iakttagelse om en
+beräkning — öppna ett ärende, det är den vägen som är öppen. Villkoren för bidrag står kvar i
+[CONTRIBUTING.md](CONTRIBUTING.md) för den som forkar och driver vidare på
+egen hand, vilket AGPL uttryckligen tillåter.

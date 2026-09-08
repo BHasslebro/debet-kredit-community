@@ -1,7 +1,13 @@
 # Debet & Kredit — bokföring för ett aktiebolag
 
 Det här är en fork av `Isakssol/debet-kredit-community` (AGPL-3.0). Uppströms
-frystes 2026-09-01 och tar varken emot eller skickar ändringar. Repot används
+är fryst i funktioner sedan 2026-09-01 men fortsätter publicera rättelser,
+säkerhetsfixar och databasändringar. Det tar inte emot ändringar från oss. Vi
+hämtar in uppströms rättelser med `git merge upstream/main` (remote
+`upstream` = `https://github.com/Isakssol/debet-kredit-community`) när de är
+värdefulla, och varje regelstyrd ändring granskas mot `docs/REGELVERK.md`
+innan den tas in. Forkens egna konteringsval (t.ex. 2893 för privata utlägg i
+aktiebolag) går före uppströms vid konflikt. Repot används
 för bokföringen i ägarens aktiebolag (under bildande): en användare, en databas,
 självhostat på Next.js + Supabase. Det är inte en produkt för andra.
 

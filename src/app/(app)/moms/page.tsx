@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { todayISO } from "@/lib/dates";
 
 export default async function VatPage({
   searchParams,
@@ -28,7 +29,7 @@ export default async function VatPage({
     (settings?.vat_period ?? "kvartal") as "manad" | "kvartal" | "helar",
     settings?.eu_trade ?? false
   );
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const selected = periods.find((p) => p.start === selectedStart)
     ?? periods.filter((p) => p.start <= today).pop()
     ?? periods[0];
@@ -117,7 +118,7 @@ export default async function VatPage({
               <div className="text-sm font-medium">Momskontroller</div>
               {checks.map((c) => (
                 <div key={c.label} className="text-sm flex gap-2">
-                  <span>{c.ok ? "✅" : "⚠️"}</span>
+                  <span>{c.ok ? "✓" : "!"}</span>
                   <span>
                     {c.label}
                     <span className="block text-xs text-muted-foreground">{c.detail}</span>
@@ -134,6 +135,7 @@ export default async function VatPage({
             payable={payable}
             hasEskd={!!report?.eskd_xml}
             verificationId={report?.verification_id ?? null}
+            failedChecks={checks.filter((c) => !c.ok).length}
           />
         </CardContent>
       </Card>

@@ -30,7 +30,7 @@ export async function sendInvoiceEmail(invoiceId: string) {
   // Rendera faktura-PDF:en direkt (samma dataväg som PDF-routen)
   const { renderToBuffer } = await import("@react-pdf/renderer");
   const React = await import("react");
-  const { InvoicePdf } = await import("@/lib/invoicing/invoice-pdf");
+  const { InvoicePdf, companyFromSettings } = await import("@/lib/invoicing/invoice-pdf");
   const { calculateTotals } = await import("@/lib/invoicing/totals");
 
   const { data: fullInv } = await supabase.from("invoices")
@@ -51,6 +51,9 @@ export async function sendInvoiceEmail(invoiceId: string) {
       account: r.account ?? 3011,
     }));
   const totals = calculateTotals(rowInputs, fullInv.vat_type === "SE");
+  // Samma fakturahuvud som PDF-routen, logotypen inkluderad
+  const { logoDataUrl } = await import("@/lib/branding/logo");
+  const logo = await logoDataUrl(supabase, settings.logo_path);
 
   const pdfBuffer = await renderToBuffer(
     React.createElement(InvoicePdf, {
@@ -73,7 +76,11 @@ export async function sendInvoiceEmail(invoiceId: string) {
         vat: Number(fullInv.vat_amount),
         rounding: Number(fullInv.rounding),
         total: Number(fullInv.total_amount),
-        company: settings,
+        // Samma omskrivning som PDF-routen: raden heter company_name.
+        // Den mejlade fakturan gick tidigare ut utan avsändarnamn i huvudet
+        // och i sidfoten.
+        company: companyFromSettings(settings),
+        logoDataUrl: logo,
       },
     }) as never
   );

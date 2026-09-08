@@ -85,10 +85,11 @@ GÖR SÅ HÄR:
 4. Kör `npx supabase db push` (jag anger lösenordet; första gången frågar
    npx om det får ladda ner Supabase-CLI:t — det är ok). Verifiera efteråt
    att migrationerna finns med `npx supabase migration list`.
-5. Kvittoarkivet: migrationerna skapar storage-bucketen `underlag`.
-   Verifiera att den finns och är privat; saknas den, guida mig att skapa
-   den i Supabase-panelen (Storage → New bucket → `underlag`, EJ public) och
-   vänta tills jag bekräftat.
+5. Lagringsytorna: migrationerna skapar storage-bucketarna `underlag`
+   (kvitton och fakturor) och `branding` (logotypen). Verifiera att båda
+   finns och är privata; saknas någon, guida mig att skapa den i
+   Supabase-panelen (Storage → New bucket → namnet, EJ public) och vänta
+   tills jag bekräftat.
 6. Be mig bekräfta att jag i Supabase-panelen har (a) skapat mitt
    inloggningskonto under Authentication → Users → Add user med Auto Confirm
    och (b) stängt av "Allow new users to sign up" under Authentication →
@@ -111,7 +112,14 @@ GÖR SÅ HÄR:
    kan göras när som helst senare.
 10. Lista vad jag gör härnäst: logga in med kontot jag skapade i panelen och
    gå igenom kom igång-wizarden (bolagstyp, företagsuppgifter, momsperiod,
-   räkenskapsår, eventuell SIE-import från mitt gamla program).
+   räkenskapsår, eventuell SIE-import från mitt gamla program). Nämn också
+   tvåstegsverifieringen som ett valfritt nästa steg: slås på under
+   Inställningar → Säkerhet och står beskriven i docs/TVASTEGSVERIFIERING.md.
+   Den kräver att Multi-Factor Authentication (TOTP) är påslaget under
+   Authentication → Sign In / Providers i min Supabase-panel — på nya projekt
+   är det redan på, så kontrollera först och be mig bara ändra om det behövs.
+   Slå inte på tvåstegsverifieringen åt mig — koden ska hamna i min telefon,
+   inte i din terminal.
 11. Avsluta med en punktlista över allt som är uppsatt, var min data bor och
    var backup-ansvaret ligger (min Supabase, mina konton). Påminn mig till sist
    om att läsa avsnittet "Var du förvarar nycklarna" i docs/INSTALLATION.md och
