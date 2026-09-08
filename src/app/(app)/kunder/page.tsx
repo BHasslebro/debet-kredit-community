@@ -57,7 +57,8 @@ export default async function CustomersPage() {
                 </Badge>
               </TableCell>
               <TableCell className="text-muted-foreground">
-                {c.payment_terms ?? "standard"} dgr
+                {/* "standard dgr" stod på varje kund utan egna villkor. */}
+                {c.payment_terms != null ? `${c.payment_terms} dgr` : "Standard"}
               </TableCell>
               <TableCell>
                 <CustomerDialog customer={c} />

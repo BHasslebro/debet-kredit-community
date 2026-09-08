@@ -1,6 +1,6 @@
 import { PrintButton } from "@/components/print-button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { DownloadButton } from "@/components/download-button";
 import type { K2Report, K2Row } from "@/lib/k2/report";
 
 const fmt = (n: number) => n.toLocaleString("sv-SE");
@@ -47,22 +47,28 @@ export function K2AnnualReport({
         </div>
         <div className="flex flex-col gap-1.5 shrink-0">
           <PrintButton />
-          <Button asChild variant="outline" size="sm" className="print:hidden">
-            <a href={`/export/sru?year=${year}`}
-              title="INK2 + INK2R + INK2S som SRU-filer för Skatteverkets filöverföring">
-              SRU-filer (INK2)
-            </a>
-          </Button>
+          <DownloadButton size="sm" className="print:hidden"
+            href={`/export/sru?year=${year}`} workingLabel="Bygger SRU-filerna…"
+            title="INK2 + INK2R + INK2S som SRU-filer för Skatteverkets filöverföring">
+            SRU-filer (INK2)
+          </DownloadButton>
         </div>
       </div>
 
+      {/* Varningen satt tidigare i en print:hidden-ruta. Det utskrivna
+          dokumentet — det som faktiskt lämnas till Bolagsverket — visade
+          alltså en obalanserad balansräkning utan ett ord om saken. En
+          årsredovisning som inte balanserar får inte lämnas in tyst. */}
       {!balanced && (
-        <Card className="border-destructive print:hidden">
+        <Card className="border-destructive">
           <CardContent className="py-4 text-sm text-destructive">
-            ⚠️ Balansräkningen balanserar inte (tillgångar {fmt(report.balances.assets)} kr,
-            eget kapital &amp; skulder {fmt(report.balances.equityAndLiabilities)} kr).
-            Kontrollera att alla bokslutsposter (avskrivningar, skatt, årets resultat)
-            är bokförda innan dokumentet används.
+            Obs: balansräkningen balanserar inte (tillgångar {fmt(report.balances.assets)} kr,
+            eget kapital &amp; skulder {fmt(report.balances.equityAndLiabilities)} kr —
+            skillnad {fmt(report.balances.assets - report.balances.equityAndLiabilities)} kr).
+            Dokumentet får inte lämnas in i det här skicket. Kontrollera att alla
+            bokslutsposter (avskrivningar, skatt, årets resultat) är bokförda, och
+            att inga poster ligger på konton avsedda för enskild firma (2010–2018) —
+            de hör inte hemma i ett aktiebolag.
           </CardContent>
         </Card>
       )}
@@ -93,7 +99,9 @@ export function K2AnnualReport({
               </tr></thead>
               <tbody>
                 <tr><td>Nettoomsättning</td><td className="text-right tabular-nums">{fmt(Math.round(report.netRevenue / 1000))}</td></tr>
-                <tr><td>Resultat efter finansiella poster</td><td className="text-right tabular-nums">{fmt(Math.round(report.result / 1000))}</td></tr>
+                {/* Raden heter det den heter — tidigare skrevs årets resultat
+                    här, alltså efter bokslutsdispositioner och skatt. */}
+                <tr><td>Resultat efter finansiella poster</td><td className="text-right tabular-nums">{fmt(Math.round(report.resultAfterFin / 1000))}</td></tr>
                 <tr><td>Soliditet (%)</td><td className="text-right tabular-nums">
                   {report.balances.assets > 0 ? Math.round(report.equity.total / report.balances.assets * 100) : 0}
                 </td></tr>
@@ -103,6 +111,11 @@ export function K2AnnualReport({
             <table className="text-sm w-full max-w-md">
               <tbody>
                 <tr><td>Aktiekapital</td><td className="text-right tabular-nums">{fmt(report.equity.shareCapital)}</td></tr>
+                {/* Utan den här raden summerade tabellen inte när något låg på
+                    2082–2090 eller på enskild firmas egetkapitalkonton. */}
+                {report.equity.otherEquity !== 0 && (
+                  <tr><td>Övrigt eget kapital</td><td className="text-right tabular-nums">{fmt(report.equity.otherEquity)}</td></tr>
+                )}
                 <tr><td>Balanserat resultat</td><td className="text-right tabular-nums">{fmt(report.equity.retained)}</td></tr>
                 <tr><td>Årets resultat</td><td className="text-right tabular-nums">{fmt(report.equity.yearResult)}</td></tr>
                 <tr className="font-semibold border-t"><td>Summa eget kapital</td><td className="text-right tabular-nums">{fmt(report.equity.total)}</td></tr>
@@ -150,15 +163,49 @@ export function K2AnnualReport({
             <div className="pt-8 border-t max-w-xs">
               <p className="text-sm">Styrelseledamot</p>
             </div>
+            <div className="pt-8 border-t max-w-xs">
+              <p className="text-sm">Styrelseledamot / verkställande direktör</p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Samtliga styrelseledamöter och, i förekommande fall, verkställande
+              direktören ska underteckna årsredovisningen. Lägg till rader för hand
+              om styrelsen har fler ledamöter.
+            </p>
+          </section>
+
+          {/* Fastställelseintyg — krävs i original på den kopia som lämnas till
+              Bolagsverket (årsredovisningslagen 8 kap. 3 c §). Datum fylls i för
+              hand eftersom stämman hålls efter att dokumentet skrivits ut. */}
+          <section className="space-y-4 pt-8 border-t" style={{ breakBefore: "page" }}>
+            <h2 className="font-semibold text-base">Fastställelseintyg</h2>
+            <p className="text-sm leading-relaxed">
+              Undertecknad styrelseledamot intygar att resultaträkningen och
+              balansräkningen har fastställts på årsstämma den ______________________.
+              Årsstämman beslutade i fråga om bolagets {report.result >= 0 ? "vinst" : "förlust"} enligt
+              den i förvaltningsberättelsen intagna dispositionen. Jag intygar även
+              att denna kopia av årsredovisningen överensstämmer med originalet.
+            </p>
+            <p className="text-sm pt-4">{city || "Ort"}, den ______________________</p>
+            <div className="pt-8 border-t max-w-xs">
+              <p className="text-sm">Styrelseledamot</p>
+              <p className="text-xs text-muted-foreground">Namnförtydligande: ______________________</p>
+            </div>
           </section>
         </CardContent>
       </Card>
 
-      <p className="text-xs text-muted-foreground print:hidden">
-        Dokumentet genereras direkt ur bokföringen. Fastställelseintyg och årsstämmo­protokoll
-        tillkommer vid inlämning till Bolagsverket. Debet &amp; Kredit är ett verktyg —
-        styrelsen ansvarar för årsredovisningens innehåll.
-      </p>
+      <div className="text-xs text-muted-foreground print:hidden space-y-1">
+        <p>
+          Dokumentet genereras direkt ur bokföringen och innehåller allt Bolagsverket
+          kräver vid pappersinlämning, inklusive fastställelseintyget. Debet &amp; Kredit
+          är ett verktyg — styrelsen ansvarar för årsredovisningens innehåll.
+        </p>
+        <p>
+          Så lämnar du in på papper: håll årsstämman, skriv ut dokumentet, låt styrelsen
+          underteckna årsredovisningen och en ledamot fastställelseintyget i original,
+          och posta till Bolagsverket, Årsredovisningar, 851 98 Sundsvall.
+        </p>
+      </div>
     </div>
   );
 }

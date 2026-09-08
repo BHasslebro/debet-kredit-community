@@ -2,18 +2,31 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { computeVatBoxes, vatClosingRows, generateEskd, type VatEntry } from "@/lib/vat/report";
+import {
+  computeVatBoxes, vatClosingRows, formatEskdOrgNr, generateEskd, validateEskdNote,
+  NON_VAT_TRANSFER_SOURCES, type VatEntry,
+} from "@/lib/vat/report";
+import { todayISO } from "@/lib/dates";
 
 export async function getVatEntries(periodStart: string, periodEnd: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("ledger_entries")
-    .select("account, debit, credit")
+    .select("account, debit, credit, verification_id")
     .gte("verification_date", periodStart)
     .lte("verification_date", periodEnd);
   const { data: accounts } = await supabase.from("accounts").select("number, vat_code");
   const vatCodeByAccount = new Map((accounts ?? []).map((a) => [a.number, a.vat_code]));
-  return (data ?? []).map((e) => ({
+  // Verifikatkällor som aldrig redovisar moms — listan bor i report.ts
+  // (NON_VAT_TRANSFER_SOURCES) och får inte dubbleras här. Momsomföringen
+  // nollställer 26xx mot 2650 och skulle annars räknas in i sin egen period;
+  // bokslutsverifikatet (year_end) är daterat räkenskapsårets sista dag och
+  // ligger därför alltid i den sista momsperioden.
+  const { data: transfers } = await supabase.from("verifications").select("id")
+    .in("source", NON_VAT_TRANSFER_SOURCES)
+    .gte("verification_date", periodStart).lte("verification_date", periodEnd);
+  const transferIds = new Set((transfers ?? []).map((t) => t.id));
+  return (data ?? []).filter((e) => !transferIds.has(e.verification_id ?? "")).map((e) => ({
     account: e.account!,
     vat_code: vatCodeByAccount.get(e.account!) ?? null,
     debit: Number(e.debit),
@@ -25,6 +38,8 @@ export async function getVatEntries(periodStart: string, periodEnd: string) {
 export async function approveVatReport(input: {
   periodStart: string;
   periodEnd: string;
+  /** Valfri upplysning till Skatteverket, Rad 35 i eSKD-filen (max 300 tecken) */
+  note?: string;
 }) {
   const supabase = await createClient();
 
@@ -37,13 +52,52 @@ export async function approveVatReport(input: {
   ]);
   if (!fy) return { error: "Perioden matchar inget räkenskapsår." };
   if (existing?.status === "approved") return { error: "Perioden är redan momsredovisad." };
-  if (!settings?.org_number) {
-    return { error: "Ange personnummer under Inställningar först (krävs i eSKD-filen)." };
+
+  /**
+   * En momsperiod går inte att redovisa förrän den är slut.
+   *
+   * Två skäl, varav det andra är det allvarliga:
+   *
+   * 1. Deklarationen ska avse en avslutad redovisningsperiod
+   *    (skatteförfarandelagen 2011:1244, 26 kap. 26 och 33 §§). Siffrorna för
+   *    en pågående period är inte deklarationsdugliga — resten av perioden är
+   *    inte bokförd än.
+   *
+   * 2. Godkännandet låser periodens månader permanent, och ett momslås går
+   *    inte att låsa upp. Godkänns en period som inte tagit slut låses därför
+   *    dagar som ännu inte inträffat: bokföringen för resten av perioden blir
+   *    omöjlig, för alltid, i just den installationen. Ett klick på fel
+   *    kvartalsflik räckte.
+   */
+  const today = todayISO();
+  if (input.periodEnd >= today) {
+    return {
+      error: `Perioden ${input.periodStart} – ${input.periodEnd} är inte slut än. `
+        + "Momsdeklarationen avser en avslutad period, och godkännandet låser periodens "
+        + `månader permanent. Vänta till ${input.periodEnd} har passerat.`,
+    };
+  }
+
+  // Skatteverket kräver formatet xxxxxx-xxxx i eSKD-filen och avvisar annars
+  // filen ["Lämna momsdeklaration via fil i e-tjänsten", Rad 3]. Både numret och
+  // upplysningen prövas FÖRE omföringen: ett verifikat går inte att ta bort, och
+  // en godkänd period utan användbar fil hjälper ingen.
+  const noteError = validateEskdNote(input.note);
+  if (noteError) return { error: noteError };
+
+  const eskdOrgNr = formatEskdOrgNr(settings?.org_number);
+  if (!eskdOrgNr) {
+    return {
+      error: settings?.org_number
+        ? `Organisationsnumret "${settings.org_number}" går inte att skriva som xxxxxx-xxxx i eSKD-filen. Rätta det under Inställningar.`
+        : "Ange organisationsnummer eller personnummer under Inställningar först (krävs i eSKD-filen).",
+    };
   }
 
   const entries = await getVatEntries(input.periodStart, input.periodEnd);
   const { boxes, exact } = computeVatBoxes(entries);
   const closingRows = vatClosingRows(exact);
+  const eskd = generateEskd(eskdOrgNr, input.periodEnd, boxes, input.note);
 
   let verificationId: string | null = null;
   if (closingRows.length > 0) {
@@ -57,8 +111,6 @@ export async function approveVatReport(input: {
     if (verErr) return { error: verErr.message };
     verificationId = (Array.isArray(ver) ? ver[0] : ver)?.out_id ?? null;
   }
-
-  const eskd = generateEskd(settings.org_number, input.periodEnd, boxes);
 
   const reportValues = {
     fiscal_year_id: fy.id,

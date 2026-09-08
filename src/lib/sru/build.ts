@@ -165,9 +165,33 @@ export function buildInk2Sru(input: Ink2Input): string {
   };
 
   // ---- Belopp ur bokföringen ----
-  const bokfordSkatt = sumRange(L, 8900, 8998);                    // debet = kostnad
-  const resultatEfterSkatt = -sumRange(L, 3000, 8998);             // vinst positiv
-  const overskott = Math.round(resultatEfterSkatt + bokfordSkatt); // enkel återläggning
+  // Varje post avrundas till hela kronor FÖRE summeringen, och resultatet
+  // räknas ur de avrundade posterna. Rundades resultatet i stället ur de
+  // orundade talen kunde blanketten skickas till Skatteverket med rader som
+  // inte gick ihop: 7410 165350 − 7511 5000 − 7513 2988 = 157 362 under ett
+  // 7450 som stod på 157 361.
+  const kr = (from: number, to: number, exclude: number[] = []) =>
+    Math.round(sumRange(L, from, to, exclude));
+
+  const nettoomsattning = -kr(3000, 3799, [3740]);
+  const ovrigaIntakter = -(kr(3740, 3740) + kr(3800, 3999));
+  const ravaror = kr(4000, 4999);
+  const ovrigaExterna = kr(5000, 6999);
+  const personal = kr(7000, 7699);
+  const avskrivningar = kr(7700, 7899);
+  const ovrigaRorelsekostnader = kr(7900, 7999);
+  const finIntakt = -kr(8000, 8399);
+  const rantekostnader = kr(8400, 8799);
+  const disp = -kr(8800, 8899);
+  const bokfordSkatt = kr(8900, 8998);                              // debet = kostnad
+
+  // Posterna ovan täcker 3000–8998 utan lucka och utan överlapp, så summan är
+  // definitionsmässigt samma tal som -sumRange(L, 3000, 8998) — fast avrundat
+  // på samma sätt som raderna blanketten visar.
+  const resultatEfterSkatt = nettoomsattning + ovrigaIntakter - ravaror
+    - ovrigaExterna - personal - avskrivningar - ovrigaRorelsekostnader
+    + finIntakt - rantekostnader + disp - bokfordSkatt;             // vinst positiv
+  const overskott = resultatEfterSkatt + bokfordSkatt;              // enkel återläggning
 
   // ---- INK2 huvudblankett ----
   out.push(`#BLANKETT INK2-${input.taxYear}P4`);
@@ -211,18 +235,19 @@ export function buildInk2Sru(input: Ink2Input): string {
   up(7368, -sumRange(L, 2500, 2599));                   // 2.49 skatteskulder
   up(7370, -sumRange(L, 2900, 2999));                   // 2.50 upplupna kostnader
   // Resultaträkning
-  up(7410, -sumRange(L, 3000, 3799, [3740]));           // 3.1 nettoomsättning
-  up(7413, -(sumRange(L, 3740, 3740) + sumRange(L, 3800, 3999))); // 3.4 övriga rörelseintäkter
-  up(7511, sumRange(L, 4000, 4999));                    // 3.5 råvaror och förnödenheter
-  up(7513, sumRange(L, 5000, 6999));                    // 3.7 övriga externa kostnader
-  up(7514, sumRange(L, 7000, 7699));                    // 3.8 personalkostnader
-  up(7515, sumRange(L, 7700, 7899));                    // 3.9 av- och nedskrivningar
-  up(7517, sumRange(L, 7900, 7999));                    // 3.11 övriga rörelsekostnader
-  const finIntakt = -sumRange(L, 8000, 8399);
-  if (finIntakt > 0) up(7417, finIntakt);               // 3.16 ränteintäkter
-  up(7522, sumRange(L, 8400, 8799));                    // 3.18 räntekostnader
-  const disp = -sumRange(L, 8800, 8899);
-  if (disp > 0) up(7422, disp); else up(7527, Math.abs(disp)); // 3.24 bokslutsdispositioner
+  up(7410, nettoomsattning);                            // 3.1 nettoomsättning
+  up(7413, ovrigaIntakter);                             // 3.4 övriga rörelseintäkter
+  up(7511, ravaror);                                    // 3.5 råvaror och förnödenheter
+  up(7513, ovrigaExterna);                              // 3.7 övriga externa kostnader
+  up(7514, personal);                                   // 3.8 personalkostnader
+  up(7515, avskrivningar);                              // 3.9 av- och nedskrivningar
+  up(7517, ovrigaRorelsekostnader);                     // 3.11 övriga rörelsekostnader
+  // Ett negativt netto i 8000–8399 är en kostnad, inte en negativ intäkt:
+  // 3.16 tar bara positiva belopp. Utan grenen nedan föll beloppet ur
+  // blanketten helt och 3.26 gick inte ihop med sina egna rader.
+  if (finIntakt >= 0) up(7417, finIntakt);              // 3.16 ränteintäkter
+  up(7522, rantekostnader + (finIntakt < 0 ? -finIntakt : 0)); // 3.18 räntekostnader
+  if (disp >= 0) up(7422, disp); else up(7527, -disp);  // 3.24 bokslutsdispositioner
   up(7528, bokfordSkatt);                               // 3.25 skatt på årets resultat
   if (resultatEfterSkatt >= 0) up(7450, resultatEfterSkatt);   // 3.26 vinst
   else up(7550, Math.abs(resultatEfterSkatt));                 // 3.27 förlust

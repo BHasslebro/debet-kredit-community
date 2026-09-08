@@ -12,18 +12,21 @@ export type QuickEventResult = {
   rows: PostingRow[];
 };
 
-export type CompanyType = "enskild_firma" | "aktiebolag" | "handelsbolag";
-
 /**
- * Konto för ett privat utlägg åt bolaget. Enskild firma/handelsbolag: 2018
- * Egna insättningar (eget kapital). Aktiebolag: 2893 Skulder till
- * närstående personer/aktieägare — ägaren är inte bolaget, utlägget är en
- * skuld, inte en insättning i eget kapital. Se docs/KONTERINGSGUIDE.md.
+ * Motkontot när ägaren lagt ut privat — milersättning, traktamente, kvitto
+ * betalt med privat kort.
+ *
+ * Enskild firma bokför det som en egen insättning (2018). I aktiebolag är
+ * ägaren en annan person än bolaget, och beloppet är en skuld till aktieägaren:
+ * 2893 Skulder till närstående personer/aktieägare — kontot seedas i
+ * 20260831000001_multi_company_ai.sql med kommentaren "Privata utlägg för
+ * bolagets räkning bokas hit (AB), inte mot 2018", se docs/KONTERINGSGUIDE.md.
+ * Handelsbolag följer uppströms och krediterar 2820 (skuld till anställd/ägare).
  */
-function privatUtlaggKonto(companyType?: CompanyType): { account: number; note: string } {
-  return companyType === "aktiebolag"
-    ? { account: 2893, note: "Betalt privat (skuld till aktieägare)" }
-    : { account: 2018, note: "Betalt privat (egen insättning)" };
+export function ownerPayableAccount(companyType: string): number {
+  if (companyType === "enskild_firma") return 2018;
+  if (companyType === "aktiebolag") return 2893;
+  return 2820;
 }
 
 /** Eget uttag: D 2013 / K 1930 */
@@ -65,8 +68,8 @@ export function kopMotKvitto(
   vatRatePct: number,
   expenseAccount: number,
   description: string,
-  paidPrivately = false, // betalt privat → skuld/insättning i stället för 1930, se privatUtlaggKonto
-  companyType?: CompanyType
+  paidPrivately = false, // betalt privat → K ownerAccount i stället för 1930
+  ownerAccount = 2018    // se ownerPayableAccount
 ): QuickEventResult {
   const grossOre = kronorToOre(grossKr);
   const vatOre = vatFromGross(grossOre, vatRatePct);
@@ -75,29 +78,34 @@ export function kopMotKvitto(
     { account: expenseAccount, debit: oreToKronor(netOre), credit: 0 },
   ];
   if (vatOre > 0) rows.push({ account: 2640, debit: oreToKronor(vatOre), credit: 0 });
-  const privat = privatUtlaggKonto(companyType);
   rows.push({
-    account: paidPrivately ? privat.account : 1930,
+    account: paidPrivately ? ownerAccount : 1930,
     debit: 0,
     credit: grossKr,
-    note: paidPrivately ? privat.note : undefined,
+    note: paidPrivately
+      ? (ownerAccount === 2018 ? "Betalt privat (egen insättning)" : "Betalt privat (skuld till ägaren)")
+      : undefined,
   });
   return { description, rows };
 }
 
-/** Milersättning egen bil: D 5800 / K privatUtlaggKonto (skattefri ersättning, betald privat) */
+/** Milersättning egen bil: D 5800 / K ägarens motkonto (skattefri ersättning, utlagd privat) */
 export function milersattning(
   mil: number,
   kronorPerMil: number,
-  companyType?: CompanyType
+  ownerAccount = 2018 // se ownerPayableAccount
 ): QuickEventResult {
   const amount = Math.round(mil * kronorPerMil * 100) / 100;
-  const privat = privatUtlaggKonto(companyType);
   return {
     description: `Milersättning egen bil, ${mil} mil à ${kronorPerMil} kr`,
     rows: [
       { account: 5800, debit: amount, credit: 0, note: `${mil} mil × ${kronorPerMil} kr/mil` },
-      { account: privat.account, debit: 0, credit: amount, note: `Skattefri ersättning — ${privat.note}` },
+      {
+        account: ownerAccount, debit: 0, credit: amount,
+        note: ownerAccount === 2018
+          ? "Skattefri ersättning, egen insättning"
+          : "Skattefri ersättning, skuld till ägaren",
+      },
     ],
   };
 }
@@ -112,7 +120,7 @@ export function traktamente(
   halfDays: number,
   nights: number,
   rates: { helt: number; halvt: number; natt: number },
-  companyType?: CompanyType
+  ownerAccount = 2018 // se ownerPayableAccount
 ): QuickEventResult {
   const amount =
     Math.round((wholeDays * rates.helt + halfDays * rates.halvt + nights * rates.natt) * 100) / 100;
@@ -121,12 +129,14 @@ export function traktamente(
     halfDays > 0 ? `${halfDays} halv dag à ${rates.halvt} kr` : null,
     nights > 0 ? `${nights} natt à ${rates.natt} kr` : null,
   ].filter(Boolean).join(", ");
-  const privat = privatUtlaggKonto(companyType);
   return {
     description: `Traktamente tjänsteresa (${parts})`,
     rows: [
       { account: 5831, debit: amount, credit: 0, note: "Schablonavdrag ökade levnadskostnader" },
-      { account: privat.account, debit: 0, credit: amount, note: privat.note },
+      {
+        account: ownerAccount, debit: 0, credit: amount,
+        note: ownerAccount === 2018 ? "Egen insättning" : "Skuld till ägaren",
+      },
     ],
   };
 }
@@ -144,7 +154,7 @@ export function representation(
   maxUnderlagKr: number,
   enklareGransKr: number,
   paidPrivately = false,
-  companyType?: CompanyType
+  ownerAccount = 2018 // se ownerPayableAccount
 ): QuickEventResult {
   const grossOre = kronorToOre(grossKr);
   const vatOre = vatFromGross(grossOre, vatRatePct);
@@ -185,12 +195,6 @@ export function representation(
   if (isEnklare && nonDeductibleVatOre > 0) {
     rows.push({ account: 6071, debit: oreToKronor(nonDeductibleVatOre), credit: 0 });
   }
-  const privat = privatUtlaggKonto(companyType);
-  rows.push({
-    account: paidPrivately ? privat.account : 1930,
-    debit: 0,
-    credit: grossKr,
-    note: paidPrivately ? privat.note : undefined,
-  });
+  rows.push({ account: paidPrivately ? ownerAccount : 1930, debit: 0, credit: grossKr });
   return { description: `Representation, ${persons} personer`, rows };
 }

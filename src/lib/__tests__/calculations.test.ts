@@ -2,8 +2,12 @@ import { describe, it, expect } from "vitest";
 import { kronorToOre, vatFromGross, vatOnNet, roundToKrona } from "../money";
 import { generateOcr, validateOcr } from "../ocr";
 import { calculateTotals, invoicePostingRows } from "../invoicing/totals";
-import { representation, fSkatt, kopMotKvitto, milersattning, traktamente } from "../posting/quick-events";
-import { computeVatBoxes, vatClosingRows, generateEskd, vatPeriods } from "../vat/report";
+import {
+  representation, fSkatt, kopMotKvitto, milersattning, traktamente, ownerPayableAccount,
+} from "../posting/quick-events";
+import {
+  computeVatBoxes, computeVatChecks, vatClosingRows, generateEskd, vatPeriods,
+} from "../vat/report";
 import { calculateEfTax } from "../tax/calc";
 import { generateSie4 } from "../sie/export";
 import { parseSie } from "../sie/import";
@@ -96,6 +100,58 @@ describe("snabbhändelser", () => {
     const r = milersattning(20, 25);
     expect(r.rows.find((x) => x.account === 5800)?.debit).toBe(500);
   });
+
+  /**
+   * Ägarens motkonto följer bolagsformen. Enskild firma: 2018 Egna insättningar.
+   * Aktiebolag: 2893 Skulder till närstående personer/aktieägare — så säger
+   * kontots egen kommentar i 20260831000001_multi_company_ai.sql och
+   * docs/KONTERINGSGUIDE.md. Handelsbolag: 2820 (skuld till anställd/ägare),
+   * som uppströms valde. Koden hade 2018 hårdkodat för alla bolagsformer.
+   */
+  describe("ägarens motkonto följer bolagsformen (docs/KONTERINGSGUIDE.md)", () => {
+    it("enskild firma krediterar 2018 (egen insättning)", () => {
+      expect(ownerPayableAccount("enskild_firma")).toBe(2018);
+      expect(milersattning(20, 25, ownerPayableAccount("enskild_firma"))
+        .rows.find((x) => x.account === 2018)?.credit).toBe(500);
+    });
+
+    it("aktiebolag krediterar 2893 (skuld till aktieägare), aldrig 2018", () => {
+      const owner = ownerPayableAccount("aktiebolag");
+      expect(owner).toBe(2893);
+
+      const mil = milersattning(20, 25, owner);
+      expect(mil.rows.find((x) => x.account === 2893)?.credit).toBe(500);
+      expect(mil.rows.some((x) => x.account === 2018)).toBe(false);
+
+      const kvitto = kopMotKvitto(500, 25, 6110, "Kontorsmaterial", true, owner);
+      expect(kvitto.rows.find((x) => x.account === 2893)?.credit).toBe(500);
+      expect(kvitto.rows.some((x) => x.account === 2018)).toBe(false);
+
+      const trakt = traktamente(2, 0, 1, { helt: 300, halvt: 150, natt: 150 }, owner);
+      expect(trakt.rows.find((x) => x.account === 2893)?.credit).toBe(750);
+
+      const rep = representation(1500, 25, 2, 300, 60, true, owner);
+      expect(rep.rows.find((x) => x.account === 2893)?.credit).toBe(1500);
+      expect(rep.rows.some((x) => x.account === 2018)).toBe(false);
+    });
+
+    it("handelsbolag krediterar 2820 (skuld till ägaren)", () => {
+      expect(ownerPayableAccount("handelsbolag")).toBe(2820);
+      const mil = milersattning(20, 25, ownerPayableAccount("handelsbolag"));
+      expect(mil.rows.find((x) => x.account === 2820)?.credit).toBe(500);
+      expect(mil.rows.some((x) => x.account === 2018)).toBe(false);
+    });
+
+    it("kvitto betalt via företagskontot (paidPrivately=false) bokförs mot 1930 oavsett bolagsform", () => {
+      const kvitto = kopMotKvitto(500, 25, 6110, "Kontorsmaterial", false, ownerPayableAccount("aktiebolag"));
+      expect(kvitto.rows.find((x) => x.account === 1930)?.credit).toBe(500);
+      expect(kvitto.rows.some((x) => x.account === 2018 || x.account === 2893)).toBe(false);
+    });
+
+    it("förvalet är oförändrat för den som inte skickar med något konto", () => {
+      expect(milersattning(20, 25).rows.find((x) => x.account === 2018)?.credit).toBe(500);
+    });
+  });
   it("representation: momslyft begränsas till 300 kr underlag/person", () => {
     // Middag 2 personer, 1500 kr inkl 25 % moms → netto 1200, moms 300.
     // Max underlag: 2 × 300 = 600 → avdragsgill moms 150, resten ej avdragsgill.
@@ -111,48 +167,6 @@ describe("snabbhändelser", () => {
     const r = representation(100, 12, 2, 300, 60); // fika 2 pers, 50 kr/pers netto ≈ 44.64
     expect(r.rows.some((x) => x.account === 6071)).toBe(true);
     expect(r.rows.some((x) => x.account === 6072)).toBe(false);
-  });
-
-  describe("betalt privat — konto beror på bolagstyp (docs/KONTERINGSGUIDE.md)", () => {
-    it("enskild firma (eller ingen bolagstyp angiven) → 2018 Egna insättningar", () => {
-      expect(
-        kopMotKvitto(500, 25, 6110, "Kontorsmaterial", true).rows.find((x) => x.account === 2018)?.credit
-      ).toBe(500);
-      expect(
-        kopMotKvitto(500, 25, 6110, "Kontorsmaterial", true, "enskild_firma").rows
-          .find((x) => x.account === 2018)?.credit
-      ).toBe(500);
-      expect(milersattning(20, 25).rows.find((x) => x.account === 2018)?.credit).toBe(500);
-      expect(
-        traktamente(1, 0, 0, { helt: 300, halvt: 150, natt: 150 }).rows
-          .find((x) => x.account === 2018)?.credit
-      ).toBe(300);
-      expect(
-        representation(1500, 25, 2, 300, 60, true).rows.find((x) => x.account === 2018)?.credit
-      ).toBe(1500);
-    });
-    it("aktiebolag → 2893 Skulder till aktieägare, aldrig 2018", () => {
-      const kvitto = kopMotKvitto(500, 25, 6110, "Kontorsmaterial", true, "aktiebolag");
-      expect(kvitto.rows.find((x) => x.account === 2893)?.credit).toBe(500);
-      expect(kvitto.rows.some((x) => x.account === 2018)).toBe(false);
-
-      const mil = milersattning(20, 25, "aktiebolag");
-      expect(mil.rows.find((x) => x.account === 2893)?.credit).toBe(500);
-      expect(mil.rows.some((x) => x.account === 2018)).toBe(false);
-
-      const trakt = traktamente(1, 0, 0, { helt: 300, halvt: 150, natt: 150 }, "aktiebolag");
-      expect(trakt.rows.find((x) => x.account === 2893)?.credit).toBe(300);
-      expect(trakt.rows.some((x) => x.account === 2018)).toBe(false);
-
-      const rep = representation(1500, 25, 2, 300, 60, true, "aktiebolag");
-      expect(rep.rows.find((x) => x.account === 2893)?.credit).toBe(1500);
-      expect(rep.rows.some((x) => x.account === 2018)).toBe(false);
-    });
-    it("kvitto betalt via företagskontot (paidPrivately=false) bokförs mot 1930 oavsett bolagstyp", () => {
-      const kvitto = kopMotKvitto(500, 25, 6110, "Kontorsmaterial", false, "aktiebolag");
-      expect(kvitto.rows.find((x) => x.account === 1930)?.credit).toBe(500);
-      expect(kvitto.rows.some((x) => x.account === 2018 || x.account === 2893)).toBe(false);
-    });
   });
 });
 
@@ -200,17 +214,22 @@ describe("momsdeklarationen", () => {
     expect(xml).toContain("<MomsBetala>20000</MomsBetala>");
     expect(xml).toContain("<ForsTjSkskAnnatEg>20000</ForsTjSkskAnnatEg>");
   });
-  it("omvänd skattskyldighet på inventarie (1220) → underlaget härleds till ruta 20", () => {
-    const { boxes } = computeVatBoxes([
+  it("omvänd skattskyldighet på inventarie (1220) → ruta 20 lämnas tom, kontrollen larmar", () => {
+    const rows = [
       // EU-köpt utrustning bokförd direkt som tillgång — inget 45xx-konto
       { account: 1220, vat_code: null, debit: 64743, credit: 0 },
       { account: 2614, vat_code: null, debit: 0, credit: 16185.75 },
       { account: 2645, vat_code: null, debit: 16185.75, credit: 0 },
-    ]);
-    expect(boxes["20"]).toBe(64743);
+    ];
+    const { boxes } = computeVatBoxes(rows);
+    // Underlaget gissas inte fram: det som inte är bokfört står inte i deklarationen
+    expect(boxes["20"] ?? 0).toBe(0);
     expect(boxes["30"]).toBe(16185);
     expect(boxes["48"]).toBe(16185);
     expect(boxes["49"]).toBe(0); // omvänd moms nettar ut
+    const check = computeVatChecks(rows).find((c) => c.label.includes("omvänd skattskyldighet"));
+    expect(check?.ok).toBe(false);
+    expect(check?.detail).toContain("Underlag saknas för utgående moms");
   });
 
   it("kvartalens deklarationsdatum (12:e, 17:e i jan/aug)", () => {
@@ -342,7 +361,11 @@ describe("SIE 4E", () => {
       { account: 2010, amount: -50000 },
     ]);
     expect(parsed.verifications).toHaveLength(1);
-    expect(parsed.verifications[0].description).toBe("Kundfaktura 1 — Åäö & Co");
+    // SIE 4B 5.8 föreskriver PC8/CP437, och filen skrivs till disk i den
+    // kodningen. Tankstreck finns inte i CP437, så generateSie4 translittererar
+    // det medvetet till bindestreck i stället för att det tyst ska bli "?" i
+    // arkivfilen (BFL 7 kap. 1–2 §, räkenskapsinformation i läsbar form).
+    expect(parsed.verifications[0].description).toBe("Kundfaktura 1 - Åäö & Co");
     expect(parsed.verifications[0].rows).toEqual([
       { account: 1510, amount: 15000 },
       { account: 2611, amount: -3000 },

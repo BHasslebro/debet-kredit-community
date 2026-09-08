@@ -95,10 +95,15 @@ följa README:s utvecklarväg i stället.
    och klicka **Fork** (uppe till höger) → **Create fork**.
    Nu har du en egen kopia under ditt konto: `dittnamn/debet-kredit-community`.
 
-> **Obs:** Community-versionen är fryst per 2026-09-01 — den fungerar
-> komplett men får inga uppdateringar (nästa års basbelopp, momsregler och
-> nya funktioner ingår inte). Den underhållna versionen med support ingår i
+> **Obs:** Community-versionen är fryst i funktioner per 2026-09-01 — nya
+> funktioner och nästa års regelvärden (basbelopp, momsgränser) hör till
+> licensen. Beräkningarna och säkerheten står däremot inte still: rättelser
+> porteras hit, med samma tester mot lagtext som licensen. Support ingår i
 > licensen — se prissidan som är länkad i huvud-README:n.
+>
+> Håller du din fork uppdaterad? `git remote add upstream
+> https://github.com/Isakssol/debet-kredit-community.git` en gång, sedan
+> `git pull upstream main` när en rättelse kommit.
 
 ## Steg 2 — Supabase: databasen (här bor din bokföring)
 
@@ -145,9 +150,13 @@ npx supabase db push
 
 ## Steg 4 — Kvittoarkivet
 
-I Supabase-panelen: **Storage → New bucket** → namn: `underlag` →
-lämna **Public bucket** AVSTÄNGD → **Create**. (Bucketen kan redan finnas —
-migrationerna försöker skapa den — då är detta steg klart.)
+Migrationerna i steg 3 skapar två lagringsytor (buckets) åt dig: `underlag`
+för kvitton och fakturor, och `branding` för din logotyp. Öppna
+Supabase-panelen → **Storage** och kontrollera att båda finns och att **Public**
+är AVSTÄNGT på båda.
+
+Saknas någon av dem: **Storage → New bucket** → namn `underlag` respektive
+`branding` → lämna **Public bucket** AVSTÄNGD → **Create**.
 
 ## Steg 5 — Ditt inloggningskonto
 
@@ -197,7 +206,7 @@ versionen.
    | `NEXT_PUBLIC_SUPABASE_URL` | din Project URL från steg 2 |
    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon-nyckeln från steg 2 |
    | `STATS_API_KEY` | *Valfri.* En slumpsträng du hittar på själv (`openssl rand -base64 32`) som ger externa system läsåtkomst till dina nyckeltal via `/api/stats/*`. Hoppa över om du inte bygger egna integrationer |
-   | `SUPABASE_SERVICE_ROLE_KEY` | *Valfri.* Behövs bara tillsammans med `STATS_API_KEY`, för läs-API:et ovan. Går förbi alla säkerhetsregler — lägg den aldrig någon annanstans än som miljövariabel på servern |
+   | `SUPABASE_SERVICE_ROLE_KEY` | *Valfri.* Behövs för tre saker: läs-API:et ovan (tillsammans med `STATS_API_KEY`), **API-nycklarna** under Inställningar → Åtkomst (och därmed hela `/api/v1/*`) och Byråns åtkomst. Går förbi alla säkerhetsregler — lägg den aldrig någon annanstans än som miljövariabel på servern |
 
 4. **Deploy**. Efter ~1 minut har du en adress i stil med
    `https://debet-kredit-dittnamn.vercel.app`.
@@ -210,6 +219,14 @@ bokför din första händelse.
 
 ## Valfria tillägg (när du vill)
 
+- **Tvåstegsverifiering**: ett extra steg vid inloggningen — efter lösenordet en
+  sexsiffrig kod från en app i telefonen, samma metod som din bank och ditt
+  GitHub-konto. Slås på under Inställningar → Säkerhet, tar ungefär en minut och
+  kräver ingen miljövariabel. Den vilar på **Multi-Factor Authentication
+  (TOTP)** i Supabase-panelen under Authentication → Sign In / Providers — på
+  nya projekt är den redan påslagen, och du behöver bara gå dit om appen säger
+  att den är av. Hela vägen, och vad du gör om telefonen försvinner, står i
+  [Tvåstegsverifiering](TVASTEGSVERIFIERING.md).
 - **Mejla fakturor**: konto på [resend.com](https://resend.com), verifiera din
   domän, lägg `RESEND_API_KEY` som miljövariabel i Vercel. Fakturor och
   påminnelser skickar du sedan från fakturan med ett klick — det finns ingen
@@ -218,6 +235,19 @@ bokför din första händelse.
   konfiguration (Bank → Importera CSV). API-koppling via Enable Banking kräver
   egen appregistrering (`ENABLE_BANKING_APP_ID` och
   `ENABLE_BANKING_PRIVATE_KEY`).
+- **Byråns åtkomst**: anlitar du en redovisningsbyrå kan de följa din bokföring
+  utifrån utan att du delar ut ditt lösenord eller service-nyckeln. Du skapar
+  nyckeln under Inställningar → Åtkomst → Byråns åtkomst, den visas en enda gång, och du
+  kan återkalla den när som helst — byrån tappar åtkomsten i samma sekund, även
+  om de är inloggade just då. Kräver `SUPABASE_SERVICE_ROLE_KEY` i miljön.
+
+  Nyckeln ger **läsning av sju siffror och ingenting annat**: antal obokförda
+  händelser, omatchade banktransaktioner, verifikat utan underlag, datum för
+  senaste verifikatet, till och med vilket datum bokföringen är låst, nästa
+  momsdeadline och räkenskapsårets start, slut och status. Inga belopp, inga
+  motparter, inga verifikat, inga underlag — och den kan inte bokföra. Det
+  upprätthålls av databasen, inte av gränssnittet. Samma siffror kan du hämta
+  själv på `/api/stats/byra` med din egen inloggning, om du vill räkna efter.
 
 E-faktura via Peppol, attest av leverantörsfakturor och betalfil till banken
 (ISO 20022) ingår inte i community-versionen.
@@ -235,7 +265,9 @@ på två minuter och byter ut den. Det som **inte** går att återskapa är åtk
 till kontona: mejladressen, lösenorden och GitHubs reservkoder. Tappar du dem
 tappar du allt annat på köpet. Ett undantag ska sparas när det skapas, för det
 visas en enda gång: **databaslösenordet** i Supabase (samt Enable Bankings
-PEM-fil, om du använder bankkopplingen).
+PEM-fil, om du använder bankkopplingen, och **byrånyckeln** om du ger en
+redovisningsbyrå åtkomst — tappas den bort återkallar du raden och skapar en ny,
+det finns ingen väg tillbaka till strängen).
 
 **2. Tre sätt att förvara.** Datorns egen hanterare (appen Lösenord, eller den i
 Chrome/Edge) är enklast och räcker för kontona — men den är byggd för
@@ -249,8 +281,8 @@ inte till 200 tecken base64.
 
 **3. Vad som aldrig får delas eller mejlas.** `SUPABASE_SERVICE_ROLE_KEY` går
 förbi alla säkerhetsspärrar i databasen och ger full läs- och skrivåtkomst till
-hela bokföringen. Använder du den (bara tillsammans med `STATS_API_KEY`, för
-läs-API:et) ska den bo som miljövariabel på servern och ingen annanstans —
+hela bokföringen. Använder du den (till läs-API:et, till API-nycklarna eller
+till Byråns åtkomst) ska den bo som miljövariabel på servern och ingen annanstans —
 aldrig i mejl, chatt, skärmdump eller supportärende. Ingen konsult och ingen
 "medarbetare från Supabase" behöver den; frågar någon efter den är det ett
 bedrägeriförsök. Samma regel: `RESEND_API_KEY`, `STATS_API_KEY`, Enable Bankings
@@ -302,6 +334,9 @@ finns, inte vad de är.
 | Forken syns inte i Vercels lista vid import | Vercels GitHub-app saknar åtkomst — **Adjust GitHub App Permissions** på importsidan, eller Settings → Git → Manage GitHub App Access, och välj **All repositories** |
 | En guide ber mig lägga in `CRON_SECRET` | Den guiden gäller licensversionen. Community-versionen har ingen schemalagd utskicksautomatik och använder bara de två variablerna i steg 6 |
 | `db push` avbryts med "policy ... already exists" | Ett tidigare försök hann halvvägs — kör `npx supabase db push` igen; migrationerna tål numera omkörning |
+| Koden från autentiseringsappen godkänns inte | Koden byts var trettionde sekund — vänta på nästa och skriv in den. Fortsätter det: telefonens klocka ställs inte automatiskt. Tidsbaserade koder räknas ur klockan, och några minuters glapp räcker |
+| "Tvåstegsverifiering är avstängd i projektets inställningar" | TOTP är avslaget i Supabase — slå på **Multi-Factor Authentication (TOTP)** under Authentication → Sign In / Providers. Lokalt: `[auth.mfa.totp]` i `supabase/config.toml` |
+| Utelåst från appen — telefonen med autentiseringsappen är borta | Du löser det själv, ingen support att vänta på: ta bort din faktor under Authentication → Users i din Supabase-panel och logga in med lösenordet som vanligt. Nio steg i [Tvåstegsverifiering](TVASTEGSVERIFIERING.md) |
 | Appen sover när du öppnar den | Supabase free tier pausar projekt efter 7 dagars inaktivitet — logga in på supabase.com och klicka "Restore". Bokför du varje vecka händer det aldrig. Vill du slippa helt: uppgradera projektet till Pro (~25 USD/mån) |
 
 Kört fast ändå? Bokföringsfrågorna hittar du svar på i

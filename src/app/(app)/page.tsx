@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { taxDeadlines } from "@/lib/tax-calendar";
+import { taxDeadlines, needsFTaxAnswer, F_TAX_PROMPT, TAX_CALENDAR_SOURCE } from "@/lib/tax-calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { MonthlyChart } from "@/components/monthly-chart";
 import { DashboardWidgets } from "@/components/dashboard-widgets";
 import { DEFAULT_WIDGETS, sanitizeWidgetIds, type WidgetMetrics } from "@/lib/widgets";
 import { kronorToOre } from "@/lib/money";
+import { todayISO } from "@/lib/dates";
 
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
 
@@ -29,7 +30,7 @@ export default async function DashboardPage() {
       .select("id, verification_date, description, number, verification_series(code)")
       .order("registered_at", { ascending: false }).limit(6),
     supabase.from("settings")
-      .select("vat_period, eu_trade, org_number, bankgiro, dashboard_widgets, dismissed_checklist_steps, checklist_hidden")
+      .select("vat_period, eu_trade, org_number, bankgiro, dashboard_widgets, dismissed_checklist_steps, checklist_hidden, pays_f_tax, company_type")
       .eq("id", 1).single(),
     supabase.from("vat_reports").select("period_start, status"),
     supabase.from("invoices").select("id, due_date, total_amount, invoice_payments(amount)")
@@ -46,11 +47,14 @@ export default async function DashboardPage() {
       .select("id, verification_rows!inner(account)")
       .neq("source", "correction")
       .gte("verification_rows.account", 3000).lte("verification_rows.account", 3799),
+    // Samma urval som avstämningen och årsavslutet. Momsomföringen,
+    // bokslutsverifikatet och kundfakturorna kan aldrig få ett externt
+    // underlag och ska inte anklagas för att sakna ett.
     supabase.from("verifications")
       .select("id, attachments(id)")
-      .neq("source", "correction"),
+      .in("source", ["manual", "quick_event", "supplier_invoice"]),
   ]);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const bal = balances ?? [];
   const bankSaldo = bal.filter((b) => b.account! >= 1910 && b.account! <= 1940)
     .reduce((s, b) => s + kronorToOre(Number(b.balance)), 0);
@@ -84,6 +88,8 @@ export default async function DashboardPage() {
   const avgOrder = salesCount > 0 ? revenueYear / salesCount : 0;
 
   // Kom igång-checklistan (Fortnox-mönstret) — bortklickade steg filtreras bort
+  const isSoleTrader = (settings?.company_type ?? "enskild_firma") === "enskild_firma";
+
   const dismissedSteps = new Set(
     Array.isArray(settings?.dismissed_checklist_steps) ? settings.dismissed_checklist_steps : []);
   const checklist = settings?.checklist_hidden ? [] : [
@@ -92,7 +98,11 @@ export default async function DashboardPage() {
       label: "Fyll i företagsuppgifterna",
       done: !!settings?.org_number && !!settings?.bankgiro,
       href: "/installningar",
-      hint: "Personnummer och bankgiro krävs på fakturorna",
+      // En enskild firma identifieras med personnummer, ett AB/HB med
+      // organisationsnummer. Texten var hårdkodad på det förstnämnda.
+      hint: isSoleTrader
+        ? "Personnummer och bankgiro krävs på fakturorna"
+        : "Organisationsnummer och bankgiro krävs på fakturorna",
     },
     {
       id: "first_customer",
@@ -120,7 +130,9 @@ export default async function DashboardPage() {
       label: "Bokför en händelse",
       done: (verCount ?? 0) > 0,
       href: "/verifikat/ny",
-      hint: "Prova en snabbhändelse — t.ex. eget uttag",
+      hint: isSoleTrader
+        ? "Prova en snabbhändelse — t.ex. eget uttag"
+        : "Prova en snabbhändelse — t.ex. köp mot kvitto",
     },
     {
       id: "bank",
@@ -137,7 +149,8 @@ export default async function DashboardPage() {
   const upcoming = taxDeadlines(
     fy?.year ?? 2026,
     (settings?.vat_period ?? "kvartal") as "manad" | "kvartal" | "helar",
-    settings?.eu_trade ?? false
+    settings?.eu_trade ?? false,
+    settings?.pays_f_tax
   ).filter((d) => {
     if (d.dueDate < today) return false;
     if (d.type === "moms" && d.periodStart) {
@@ -149,6 +162,10 @@ export default async function DashboardPage() {
 
   const missingAttachments = (attachCheck ?? [])
     .filter((v) => (v.attachments as { id: string }[]).length === 0).length;
+
+  // F-skattefrågan obesvarad: hellre en rad som ber om svaret än tolv datum
+  // som programmet gissat fram åt någon som kanske inte har F-skatt alls.
+  const askFTax = needsFTaxAnswer(settings?.pays_f_tax);
 
   const daysUntil = (date: string) =>
     Math.ceil((new Date(date).getTime() - new Date(today).getTime()) / 86400000);
@@ -192,7 +209,14 @@ export default async function DashboardPage() {
       : { text: "—", sub: "ingen försäljning ännu" },
     verifikat_count: { text: `${verCount ?? 0} st`, sub: "i obruten serie", href: "/verifikat" },
   };
-  const chosenWidgets = sanitizeWidgetIds(settings?.dashboard_widgets) ?? DEFAULT_WIDGETS;
+  // own_withdrawals summerar 2011/2012/2013 och länkar till /skatt, som bara
+  // gäller enskild firma. Ett aktiebolag fick ändå rutan i
+  // standarduppsättningen: alltid 0 kr, med en länk till en sida som visar
+  // bort dem. Har användaren valt egna rutor rör vi förstås ingenting.
+  const chosenWidgets = sanitizeWidgetIds(settings?.dashboard_widgets)
+    ?? (isSoleTrader
+      ? DEFAULT_WIDGETS
+      : DEFAULT_WIDGETS.map((w) => (w === "own_withdrawals" ? "vat_debt" : w)));
 
   return (
     <div className="space-y-5">
@@ -241,17 +265,17 @@ export default async function DashboardPage() {
           <CardContent className="space-y-2 text-sm">
             {overdueInvoices.length > 0 && (
               <Link href="/fakturor" className="flex justify-between hover:underline">
-                <span>🔴 {overdueInvoices.length} förfallna kundfakturor att påminna</span>
+                <span>{overdueInvoices.length} förfallna kundfakturor att påminna</span>
               </Link>
             )}
             {missingAttachments > 0 && (
               <Link href="/analys" className="flex justify-between hover:underline">
-                <span>📎 {missingAttachments} verifikat saknar underlag</span>
+                <span>{missingAttachments} verifikat saknar underlag</span>
               </Link>
             )}
             {dueSuppliers.length > 0 && (
               <Link href="/leverantorer" className="flex justify-between hover:underline">
-                <span>💸 {dueSuppliers.length} leverantörsfakturor att betala</span>
+                <span>{dueSuppliers.length} leverantörsfakturor att betala</span>
               </Link>
             )}
             {upcoming.map((d) => (
@@ -259,17 +283,28 @@ export default async function DashboardPage() {
                 href={d.type === "moms" ? "/moms" : d.type === "inkomstdeklaration" ? "/arsavslut" : "/skatt"}
                 className="flex justify-between gap-2 hover:underline">
                 <span>
-                  {d.type === "moms" ? "🧾" : d.type === "f_skatt" ? "🏛️" : "📋"} {d.title}
+                  {d.title}
                 </span>
                 <Badge variant={daysUntil(d.dueDate) <= 7 ? "destructive" : "outline"}>
                   {d.dueDate} ({daysUntil(d.dueDate)} dgr)
                 </Badge>
               </Link>
             ))}
-            {overdueInvoices.length === 0 && dueSuppliers.length === 0
-              && missingAttachments === 0 && upcoming.length === 0 && (
-              <p className="text-muted-foreground">Allt är i fas. 🎉</p>
+            {askFTax && (
+              <Link href={F_TAX_PROMPT.href} className="flex justify-between gap-2 hover:underline">
+                <span className="text-muted-foreground">{F_TAX_PROMPT.text}</span>
+              </Link>
             )}
+            {overdueInvoices.length === 0 && dueSuppliers.length === 0
+              && missingAttachments === 0 && upcoming.length === 0 && !askFTax && (
+              <p className="text-muted-foreground">Allt är i fas.</p>
+            )}
+            {/* Skattedatumen är härledda, inte inlagda — säg det, så ingen tror
+                att någon lagt in dem åt dem. */}
+            <p className="pt-1 text-xs text-muted-foreground"
+              title="Momsperioden, EU-handeln och F-skattesvaret under Inställningar avgör vilka datum som visas här.">
+              {TAX_CALENDAR_SOURCE}
+            </p>
           </CardContent>
         </Card>
 

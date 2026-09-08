@@ -14,6 +14,22 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { todayISO } from "@/lib/dates";
+
+/**
+ * Påminnelseavgiften är högst 60 kr enligt lag (1981:739) om ersättning för
+ * inkassokostnader m.m. 4 § andra stycket. Enligt 2 § får ersättning för en
+ * skriftlig betalningspåminnelse tas ut bara om avtal om det träffats senast i
+ * samband med skuldens uppkomst — det kan programmet inte kontrollera, så det
+ * står i knappens hjälptext. Server-actionen avvisar högre belopp.
+ *
+ * Beloppet kommer från Inställningar → Företagsuppgifter. Det fältet gick förr
+ * inte att koppla till någonting alls; knappen tog alltid 60 kr.
+ */
+const reminderFeeNote = (fee: number) =>
+  `Påminnelseavgift ${fee.toFixed(2).replace(".", ",")} kr, hämtad från Inställningar. `
+  + "Högst 60 kr enligt lag (1981:739) 4 §, och avgiften får bara tas ut om det "
+  + "avtalats senast när skulden uppkom (2 §).";
 
 export function InvoiceActions({
   invoiceId,
@@ -21,17 +37,20 @@ export function InvoiceActions({
   type,
   remaining,
   hasCreditNote,
+  reminderFee,
 }: {
   invoiceId: string;
   status: string;
   type: string;
   remaining: number;
   hasCreditNote: boolean;
+  /** Avgiften från Inställningar → Företagsuppgifter, i kronor */
+  reminderFee: number;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
-  const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
+  const [payDate, setPayDate] = useState(todayISO());
   const [payAmount, setPayAmount] = useState(remaining > 0 ? remaining.toFixed(2) : "");
 
   async function run(fn: () => Promise<{ error?: string } & Record<string, unknown>>, okMsg: string) {
@@ -126,9 +145,9 @@ export function InvoiceActions({
       )}
 
       {canPay && (
-        <Button variant="outline" disabled={busy}
+        <Button variant="outline" disabled={busy} title={reminderFeeNote(reminderFee)}
           onClick={() => run(async () => {
-            const r = await createReminder(invoiceId, 60);
+            const r = await createReminder(invoiceId, reminderFee);
             if (!r.error) window.open(`/fakturor/${invoiceId}/paminnelse`, "_blank");
             return r;
           }, "Påminnelse skapad — PDF öppnas")}>

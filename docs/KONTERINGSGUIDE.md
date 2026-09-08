@@ -30,7 +30,7 @@ hör hemma var. Vid osäkerhet: fråga en redovisningskonsult.
 | Trängselskatt (tjänsteresa) | 5616 | Momsfri |
 | Tågbiljetter, flyg, taxi | 5810 | 6 % moms |
 | Hotell & restaurang på tjänsteresa | 5831 | 12 % moms |
-| Milersättning egen bil | 5800 | Schablon 25 kr/mil (2026), momsfri. Körjournalen bokför D 5800 / K 2018 |
+| Milersättning egen bil | 5800 | Schablon 25 kr/mil (2026), momsfri. Körjournalen bokför D 5800 / K 2018 (enskild firma) eller K 2893 (aktiebolag) |
 | Lokalhyra | 5010 | Oftast momsfri |
 | Facklitteratur/branschtidskrift | 6970 | 6 % — allmänna tidningar är privat |
 | Företagsförsäkring | 6310 | Momsfri |
@@ -71,7 +71,7 @@ svensk moms — hela beloppet blir kostnad.
 |---|---|
 | Enskild firma | Kreditera **2018** Egna insättningar |
 | Aktiebolag | Kreditera **2893** Skuld till aktieägare (och betala ut senare) |
-| Handelsbolag | Respektive delägares kapitalkonto (2018/2020) |
+| Handelsbolag | Kreditera **2820** Kortfristiga skulder till anställda (uppströms val i `ownerPayableAccount`; forken använder inte handelsbolag) |
 
 Snabbhändelserna (köp mot kvitto, milersättning, traktamente, representation)
 väljer kontot automatiskt utifrån bolagstypen i inställningarna när du

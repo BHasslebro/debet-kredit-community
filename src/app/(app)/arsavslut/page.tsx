@@ -7,7 +7,7 @@ import { CompleteYearEnd } from "@/components/complete-year-end";
 import { K2AnnualReport } from "@/components/k2-annual-report";
 import { buildK2Report } from "@/lib/k2/report";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { DownloadButton } from "@/components/download-button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("sv-SE");
@@ -116,11 +116,11 @@ export default async function YearEndPage() {
             Förenklat årsbokslut (K1) — bokfört resultat: <strong>{fmt(bookedResult)} kr</strong>
           </p>
         </div>
-        <Button asChild variant="outline" size="sm">
-          <a href={`/export/sru?year=${fy.year}`} title="INFO.SRU + BLANKETTER.SRU (NE + INK1-utkast) för Skatteverkets filöverföring">
-            SRU-filer (NE + INK1)
-          </a>
-        </Button>
+        <DownloadButton size="sm" href={`/export/sru?year=${fy.year}`}
+          workingLabel="Bygger SRU-filerna…"
+          title="INFO.SRU + BLANKETTER.SRU (NE + INK1-utkast) för Skatteverkets filöverföring">
+          SRU-filer (NE + INK1)
+        </DownloadButton>
       </div>
 
       <Card>
@@ -132,7 +132,10 @@ export default async function YearEndPage() {
           {checks.map((c) => (
             <Link key={c.label} href={c.href}
               className="flex items-center justify-between text-sm hover:underline">
-              <span>{c.ok ? "✅" : "⬜"} {c.label}</span>
+              <span className="flex items-center gap-2">
+                <span className={c.ok ? "text-emerald-600" : "text-muted-foreground"}>{c.ok ? "✓" : "○"}</span>
+                {c.label}
+              </span>
               {c.detail && <Badge variant="destructive">{c.detail}</Badge>}
             </Link>
           ))}
@@ -149,9 +152,8 @@ export default async function YearEndPage() {
                 (periodiseringsfond, räntefördelning) planerar du under Skatt & eget uttag.
               </CardDescription>
             </div>
-            <Button variant="outline" size="sm" asChild>
-              <a href={`/rapporter/pdf?typ=ne&year=${fy.year}`} target="_blank">NE-underlag PDF</a>
-            </Button>
+            <DownloadButton size="sm" newTab workingLabel="Bygger PDF:en…"
+              href={`/rapporter/pdf?typ=ne&year=${fy.year}`}>NE-underlag PDF</DownloadButton>
           </div>
         </CardHeader>
         <CardContent className="grid sm:grid-cols-2 gap-6 text-sm">

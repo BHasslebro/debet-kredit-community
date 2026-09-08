@@ -1,5 +1,5 @@
 import { Document, Text, View } from "@react-pdf/renderer";
-import { ReportPage, rs, fmtKr, type ReportMeta } from "@/lib/reports/pdf-shared";
+import { ReportPage, rs, fmtKr, pdfAmount, type ReportMeta } from "@/lib/reports/pdf-shared";
 import type { AccountLine, LedgerRow } from "@/lib/reports/data";
 import { BOX_LABELS, BOX_ORDER } from "@/lib/vat/report";
 
@@ -377,7 +377,7 @@ export function NeReportPdf({
   rFields: { field: string; label: string; value: number }[];
   bookedResult: number;
 }) {
-  const kr = (n: number) => Math.round(n).toLocaleString("sv-SE");
+  const kr = (n: number) => pdfAmount(n, 0);
   return (
     <Document title={meta.title}>
       <ReportPage meta={meta}>
@@ -445,7 +445,7 @@ export function VatReportPdf({
           <View key={box} style={box === "49" ? rs.totalLine : rs.line}>
             <Text style={{ width: 40 }}>{box}</Text>
             <Text style={rs.colName}>{BOX_LABELS[box]}</Text>
-            <Text style={rs.colAmount}>{(boxes[box] ?? 0).toLocaleString("sv-SE")}</Text>
+            <Text style={rs.colAmount}>{pdfAmount(boxes[box] ?? 0, 0)}</Text>
           </View>
         ))}
       </ReportPage>

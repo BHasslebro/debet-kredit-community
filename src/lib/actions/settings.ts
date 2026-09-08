@@ -3,10 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import { orgNumberIssue, ORG_NUMBER_ERROR } from "@/lib/vat/report";
 
 const settingsSchema = z.object({
   company_name: z.string().min(1),
-  org_number: z.string().optional(),
+  // Numret måste gå att skriva som xxxxxx-xxxx i eSKD-filen. Kontrollen ligger
+  // här så att felet upptäcks när numret sparas, inte när momsdeklarationen ska
+  // godkännas — då har perioden redan hunnit bli aktuell för inlämning.
+  org_number: z.string().optional()
+    .refine((v) => orgNumberIssue(v) === null, ORG_NUMBER_ERROR),
   vat_number: z.string().optional(),
   address: z.string().optional(),
   postal_code: z.string().optional(),
@@ -19,6 +24,10 @@ const settingsSchema = z.object({
   bic: z.string().optional(),
   vat_period: z.enum(["manad", "kvartal", "helar"]),
   eu_trade: z.boolean(),
+  // Har företaget beslut om debiterad preliminärskatt? null = obesvarad, och
+  // det är ett giltigt svar: skattekalendern visar då inga F-skattdatum utan
+  // ber om beskedet i stället för att anta att de gäller.
+  pays_f_tax: z.boolean().nullable().optional(),
   default_payment_terms: z.number().int().min(0).max(90),
   reminder_fee: z.number().min(0),
   late_interest_rate: z.number().nullable(),
@@ -32,6 +41,9 @@ export async function saveSettings(input: unknown) {
   // Härled VAT-nummer om det saknas. Enskild firma: SE + 12-siffrigt personnummer + 01
   // (10 siffror antas 19xx). Bolag: SE + 10-siffrigt organisationsnummer + 01 (inget sekelprefix).
   const values = { ...parsed.data };
+  // Utelämnat F-skattesvar betyder "rör inte" — inte "nollställ". Ett tidigare
+  // svar får aldrig försvinna för att ett anrop inte kände till fältet.
+  if (values.pays_f_tax === undefined) delete values.pays_f_tax;
   if (values.org_number && !values.vat_number) {
     const digits = values.org_number.replace(/\D/g, "");
     const supabaseForType = await createClient();

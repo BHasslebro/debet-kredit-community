@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { saveCompanyType } from "@/lib/actions/settings";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Working } from "@/components/ui/working";
 import { Label } from "@/components/ui/label";
 import { Building2 } from "lucide-react";
 
@@ -56,14 +57,14 @@ export function CompanySettings({ companyType }: { companyType: string }) {
           </select>
           {value !== "enskild_firma" && (
             <p className="text-xs text-muted-foreground">
-              Löpande bokföring, moms och rapporter fungerar fullt ut. Årsavslutet
-              (K1/NE-bilaga) gäller endast enskild firma än så länge.
+              Årsavslutet följer formen: K2-årsredovisning och INK2 för aktiebolag,
+              N3A-bilaga per delägare för handelsbolag.
             </p>
           )}
         </div>
 
         <Button onClick={save} disabled={pending}>
-          {pending ? "Sparar…" : "Spara"}
+          {pending ? <Working inline label="Sparar…" /> : "Spara"}
         </Button>
       </CardContent>
     </Card>

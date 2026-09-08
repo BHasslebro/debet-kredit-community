@@ -46,7 +46,7 @@ export default function LoginPage() {
             Hela firmans ekonomi.<br />Ett program. Öppen källkod.
           </h2>
           <ul className="space-y-1.5 text-sm text-sidebar-foreground/80">
-            <li>✓ Fakturering med OCR och automatisk bokföring</li>
+            <li>✓ Fakturering med kundregister, PDF och påminnelser</li>
             <li>✓ Momsdeklaration och eSKD-fil på fem minuter</li>
             <li>✓ Bankkoppling med smart matchning</li>
             <li>✓ Årsbokslut, NE-bilaga och uttagssimulator</li>
